@@ -12,6 +12,19 @@ services:
   agent:
     build: .
     restart: unless-stopped
+    # Capped, like everything here. The agent holds base64 image bytes in memory
+    # while captioning, so it is not a fixed cost — but 512 MB is far more than a
+    # photo and its caption, and the point of the cap is that a leak degrades the
+    # agent rather than the stack beside it.
+    mem_limit: ${AGENT_MEMORY:-512m}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8787/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # The agent does nothing slow at startup, but the container is often
+      # started moments after Docker itself.
+      start_period: 10s
     ports:
       - "8787:8787"
     environment:
@@ -71,6 +84,20 @@ services:
     image: ollama/ollama:latest
     profiles: ["decisions"]
     restart: unless-stopped
+    # The one place a cap genuinely matters. On an 8 GB box that is also running
+    # Immich's own ML container, an uncapped Ollama loading a 1.8B model is how
+    # the machine ends up in swap and takes Immich down with it. Raise it in .env
+    # if you have the headroom; the failure mode of too low is a refused load,
+    # which is visible, rather than a swap stall, which is not.
+    mem_limit: ${OLLAMA_MEMORY:-3g}
+    # `ollama list` is used rather than an HTTP probe: the image is the one thing
+    # guaranteed to contain the ollama binary, and it needs no extra tooling.
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     ports:
       - "11434:11434"
     environment:

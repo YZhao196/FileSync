@@ -60,6 +60,27 @@ check(
 
 check('an exact slug match wins', resolveContainer(states('redis', 'redis-commander'), { slug: 'redis', container: null }), 'redis')
 
+// Compose names containers `<project>-<service>-<n>`, so the configured name is
+// almost never the literal container name. Matching it exactly would report a
+// running service as stopped.
+check(
+  'a compose-prefixed container name is found',
+  resolveContainer(states('filesynapse-immich-server-1', 'filesynapse-redis-1'), {
+    slug: 'immich',
+    container: 'immich-server',
+  }),
+  'filesynapse-immich-server-1',
+)
+
+check(
+  'and the ML container is not what it resolves to',
+  resolveContainer(states('filesynapse-immich-machine-learning-1', 'filesynapse-immich-server-1'), {
+    slug: 'immich',
+    container: 'immich-server',
+  }),
+  'filesynapse-immich-server-1',
+)
+
 check(
   'an ambiguous slug falls back to the shortest match',
   resolveContainer(states('immich-machine-learning', 'immich-server'), { slug: 'immich', container: null }),

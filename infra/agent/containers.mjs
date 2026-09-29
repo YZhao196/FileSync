@@ -33,16 +33,21 @@ export function parseServices(raw) {
 /**
  * The container backing a service, or `undefined` if none is running.
  *
- * An explicit name wins outright and is not second-guessed — if it is not there,
- * the service reads as stopped rather than silently resolving to a neighbour.
- * Otherwise an exact slug, then the shortest containing name: a heuristic, but a
- * stable one, where the old code's answer depended on `docker ps` ordering.
+ * An explicit name is matched as a substring, which is safe precisely because it
+ * is not ambiguous — and necessary, because Compose names containers
+ * `<project>-<service>-<n>`, so `immich-server` is really
+ * `filesynapse-immich-server-1` and an exact match would never fire. Getting
+ * that wrong reads as "stopped" for a running service, which is worse than the
+ * ambiguity it replaced.
+ *
+ * A bare slug tries an exact name first, then the shortest containing name: a
+ * heuristic, but a stable one, where the old code's answer depended on the order
+ * `docker ps` happened to return.
  */
 export function resolveContainer(states, { slug, container }) {
   if (!states) return undefined
-  if (container) return states.has(container) ? container : undefined
+  const names = [...states.keys()]
+  if (container) return names.find((name) => name.includes(container))
   if (states.has(slug)) return slug
-  return [...states.keys()]
-    .filter((name) => name.includes(slug))
-    .sort((a, b) => a.length - b.length)[0]
+  return names.filter((name) => name.includes(slug)).sort((a, b) => a.length - b.length)[0]
 }

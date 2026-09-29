@@ -59,3 +59,14 @@ jobs:
         run: |
           node infra/agent/captionStore.test.mjs
           node infra/agent/containers.test.mjs
+
+      # The compose files can only be checked where Docker exists, which is here
+      # and not on the Windows dev machine. Without this a YAML slip or a bad
+      # interpolation is discovered by the person running provisioning for the
+      # first time, on the server, with no stack to fall back to.
+      - name: Validate compose files
+        run: |
+          AGENT_TOKEN=ci docker compose -f infra/agent/docker-compose.yml config >/dev/null
+          echo "agent compose ok"
+          AGENT_TOKEN=ci docker compose -f infra/agent/docker-compose.yml --profile decisions config >/dev/null
+          echo "agent compose with the decisions profile ok"

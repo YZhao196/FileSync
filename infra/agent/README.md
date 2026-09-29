@@ -49,6 +49,14 @@ deliberate, and mirrors the collectors: the caller can say something specific.
 | `AGENT_VISION_MODEL` | `moondream` | Ollama model tag |
 | `AGENT_DECISION_BATCH` | `8` | Photos per request — a patience setting, not a limit |
 | `AGENT_CAPTION_PATH` | `/var/lib/filesynapse/decisions/captions.json` | Caption cache |
+| `AGENT_MEMORY` | `512m` | Container memory cap |
+| `OLLAMA_MEMORY` | `3g` | Vision model's cap — raise it if the model refuses to load |
+
+Both containers are capped, and both have healthchecks. The caps exist because
+this machine also runs Immich's own ML container: an uncapped model does not fail
+loudly, it pushes the box into swap and takes the stack with it. A cap set too low
+refuses the load instead, which you can see. `docker compose ps` reports health,
+so "running" and "ready" are no longer the same claim.
 
 ## The decision pipeline (optional)
 
