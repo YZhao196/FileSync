@@ -121,12 +121,17 @@ curl -H "Authorization: Bearer $AGENT_TOKEN" http://localhost:8787/api/status
 
 Full contract and configuration: [`infra/agent/README.md`](infra/agent/README.md).
 
-Two honest caveats in that file: `lastRunOk` is **inferred** (restic keeps no
-exit status, so a snapshot inside 36 hours is taken as evidence the run worked),
-and `nextRunAt` is derived as last-run-plus-24h rather than read from the systemd
-timer. The provisioning script below *does* write a status file, so if you use it
-the agent should read that instead of inferring — see the note in
-[§5](#5-provisioning-has-never-been-run).
+One honest caveat in that file: `nextRunAt` is derived as last-run-plus-24h
+rather than read from the systemd timer, which keeps the agent off any one init
+system.
+
+`lastRunOk` is a **fact where the provisioning script has run**, because the
+agent reads the timer's own verdict file (`AGENT_BACKUP_STATUS`, written by §5)
+on every status call and prefers it. It is only **inferred** — a snapshot inside
+36 hours taken as evidence the run worked — on a server built by hand, where
+that file does not exist. restic's repository keeps no exit status, so without
+the file a run that failed after writing nothing is indistinguishable from one
+that never started.
 
 **Do not port-forward 8787.** Tailscale only, like everything else here.
 
@@ -175,8 +180,11 @@ Things to check on that first run, because nobody has:
 - `nextcloud:apache` with `- ${FILES_DIR}:/var/www/html/data` assumes the data
   directory is empty. On a reused folder it will not adopt existing files.
 - The restic unit writes `/var/lib/filesynapse/last-backup` with an `ok`/`failed`
-  line. **The host agent does not read it yet** — pointing the agent at it would
-  turn `lastRunOk` from an inference into a fact, and is worth doing.
+  line, and the host agent reads it on every status call, so `lastRunOk` is a
+  fact rather than an inference — but only if the agent's `AGENT_BACKUP_STATUS`
+  points at that path, and only if the agent's `/var/lib/filesynapse` mount can
+  see it. Both are already configured; the thing never checked is that they
+  agree.
 - The install it does not cover: `restic` and `rsync` are installed conditionally,
   and the `restore` route assumes a repository already exists at
   `b2:$B2_BUCKET:/filesynapse`.

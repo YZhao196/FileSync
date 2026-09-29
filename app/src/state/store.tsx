@@ -103,11 +103,30 @@ function loadCreds(): Credentials {
   }
 }
 
+/**
+ * Values a previous build's *defaults* wrote into a profile, and what to use
+ * instead. Exact matches only.
+ *
+ * `espnas` was this project's name before FileSynapse, so a profile created then
+ * saved it as the files folder. Nobody chose that — it was our default — which is
+ * what makes rewriting it a correction rather than an override. A path the user
+ * typed is theirs: one character different and this leaves it alone.
+ */
+const RENAMED_DEFAULTS: ReadonlyArray<readonly [from: string, to: string]> = [
+  ['~/Nextcloud/espnas', '~/Nextcloud/FileSynapse'],
+]
+
+/** Exported for testing — the exact-match rule is the whole point of it. */
+export function adoptRenames(p: Partial<Persisted>): Partial<Persisted> {
+  const to = RENAMED_DEFAULTS.find(([from]) => from === p.fileFolder)?.[1]
+  return to ? { ...p, fileFolder: to } : p
+}
+
 function load(): Persisted {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return DEFAULTS
-    const p = JSON.parse(raw) as Partial<Persisted>
+    const p = adoptRenames(JSON.parse(raw) as Partial<Persisted>)
     return {
       theme: p.theme ?? DEFAULTS.theme,
       connection: p.connection ?? DEFAULTS.connection,
