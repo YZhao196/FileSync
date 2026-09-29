@@ -25,6 +25,7 @@ import type {
   Gradient,
   Photo,
   PhotoId,
+  PhotoPage,
   PhotoScore,
   ScoreResult,
   ServerStatus,
@@ -215,13 +216,30 @@ function placeholderImage(photo: Photo): Blob {
 
 /* ── Photos ────────────────────────────────────────────────────────────── */
 
+/** Deliberately below the live page size — see `list` below. Exported so the
+ *  test can assert against the real number rather than a copy of it. */
+export const MOCK_PHOTO_PAGE_SIZE = 24
+
 class MockPhotoBackend implements PhotoBackend {
   /** Its own scope, so a mock cache never collides with a real server's. */
   readonly cacheScope = 'mock'
 
-  async list(): Promise<Photo[]> {
+  /**
+   * Paged, at a size chosen to be *smaller* than the placeholder library.
+   *
+   * The live client asks for 100 at a time; with 36 sample photos that would
+   * mean one page and `hasMore: false` for ever, so the infinite-scroll path
+   * would never once execute in a browser. 24 makes the second page real,
+   * which is the only way this code is checkable without a server.
+   */
+  async list(opts: { page: number; from?: Date; to?: Date }): Promise<PhotoPage> {
     await delay()
-    return store.photos.map((p) => ({ ...p }))
+    const start = (Math.max(1, opts.page) - 1) * MOCK_PHOTO_PAGE_SIZE
+    const slice = store.photos.slice(start, start + MOCK_PHOTO_PAGE_SIZE)
+    return {
+      photos: slice.map((p) => ({ ...p })),
+      hasMore: start + slice.length < store.photos.length,
+    }
   }
 
   async get(id: PhotoId): Promise<Photo> {

@@ -18,6 +18,7 @@ import type {
   FileEntry,
   Photo,
   PhotoId,
+  PhotoPage,
   ScoreResult,
   ServerStatus,
   TreeNode,
@@ -30,7 +31,7 @@ export interface PhotoBackend {
    * same id on another and show the wrong photo.
    */
   readonly cacheScope: string
-  list(opts: { page: number; from?: Date; to?: Date }): Promise<Photo[]>
+  list(opts: { page: number; from?: Date; to?: Date }): Promise<PhotoPage>
   get(id: PhotoId): Promise<Photo>
   /**
    * The rendered thumbnail, or `null` when none is available.

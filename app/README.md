@@ -67,11 +67,27 @@ src/styles/base.css                 Application base — reset, selection, toast
 Carbon tokens, which is what makes a stock Primer component come out in the
 BuildNexus palette. Do not remove it.
 
-`buildnexus-overrides.css` fills the gaps it leaves. The known one: the disabled
-button fills are **not** remapped, so without it a disabled primary button
-renders Primer's own green rather than Carbon's neutral disabled grey. It is a
-separate file so the vendored stylesheet stays byte-identical to the design
-system and can be re-copied without losing the fix.
+`buildnexus-overrides.css` fills the gaps it leaves. Two so far, and both fail
+**silently** rather than loudly:
+
+- **Disabled button fills are not remapped.** Without the patch a disabled
+  primary button renders Primer's own green — reading as a working button that
+  ignores you — instead of Carbon's neutral disabled grey.
+- **The motion tokens do not resolve.** BuildNexus defines
+  `--motion-duration-micro`, `--motion-transition-enter` and friends as aliases
+  of Carbon's `--base-duration-*` / `--base-easing-*`, and those base tokens
+  were never vendored — so every alias resolved to nothing, and
+  `animation: fadeIn var(--motion-transition-enter)` is an invalid declaration
+  the browser drops without a word. The overrides file supplies the base values,
+  which is what the vendored aliases expect to find.
+
+It is a separate file so the vendored stylesheet stays byte-identical to the
+design system and can be re-copied without losing either fix.
+
+Motion goes through those tokens, never a literal duration, so tuning the design
+system tunes the app. The two animated things are the screen entrance and photo
+tiles arriving; both are disabled wholesale under `prefers-reduced-motion` by the
+rule at the end of `base.css`.
 
 `base.css` is no longer a component stylesheet. Every screen builds from Primer,
 so `.btn`, `.card`, `.group`, `.seg` and friends are gone; what remains is the

@@ -32,6 +32,23 @@ export interface Album {
   gradient: Gradient
 }
 
+/**
+ * One page of the timeline.
+ *
+ * `hasMore` is here because neither backend will tell the client how large the
+ * library is in a way worth trusting, and the client should not guess: a full
+ * page means there may be more, a short one means there is not. The obvious
+ * alternative — trusting Immich's `nextPage` field — is a wire-format guess,
+ * whereas "the page came back full" holds for any paging scheme.
+ *
+ * Without this the timeline could only ever show the first page, which is
+ * exactly what it used to do.
+ */
+export interface PhotoPage {
+  photos: Photo[]
+  hasMore: boolean
+}
+
 export interface TreeNode {
   id: string
   name: string

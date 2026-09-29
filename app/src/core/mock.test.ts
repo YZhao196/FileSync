@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createMockBackends } from './mock'
+import { createMockBackends, MOCK_PHOTO_PAGE_SIZE } from './mock'
 import type { Backends } from './backends'
 
 /**
@@ -101,7 +101,7 @@ describe('mock files', () => {
 
 describe('mock photos', () => {
   it('toggles a favourite and reflects it in the Favourites album', async () => {
-    const photos = await backends.photos.list({ page: 1 })
+    const photos = (await backends.photos.list({ page: 1 })).photos
     const target = photos.find((p) => !p.isFavourite)
     expect(target).toBeDefined()
     if (!target) return
@@ -109,7 +109,7 @@ describe('mock photos', () => {
     const albumBefore = (await backends.photos.albums()).find((a) => a.name === 'Favourites')
     await backends.photos.setFavourite(target.id, true)
 
-    const updated = (await backends.photos.list({ page: 1 })).find((p) => p.id === target.id)
+    const updated = ((await backends.photos.list({ page: 1 })).photos).find((p) => p.id === target.id)
     expect(updated?.isFavourite).toBe(true)
 
     const albumAfter = (await backends.photos.albums()).find((a) => a.name === 'Favourites')
@@ -119,7 +119,7 @@ describe('mock photos', () => {
   it('adds photos to an album and grows its count', async () => {
     const albums = await backends.photos.albums()
     const album = albums.find((a) => a.name === 'Experiments')
-    const photos = await backends.photos.list({ page: 1 })
+    const photos = (await backends.photos.list({ page: 1 })).photos
     const candidate = photos.find((p) => !p.isFavourite)
     expect(album).toBeDefined()
     expect(candidate).toBeDefined()
@@ -145,18 +145,40 @@ describe('mock photos', () => {
 
     await backends.photos.remove([victim.id])
 
-    expect((await backends.photos.list({ page: 1 })).map((p) => p.id)).not.toContain(victim.id)
+    expect(((await backends.photos.list({ page: 1 })).photos).map((p) => p.id)).not.toContain(victim.id)
     expect((await backends.photos.albumAssets(album.id)).map((p) => p.id)).not.toContain(victim.id)
   })
 
   it('returns originals as renderable bytes, not an empty blob', async () => {
-    const photos = await backends.photos.list({ page: 1 })
+    const photos = (await backends.photos.list({ page: 1 })).photos
     const id = photos[0]?.id
     expect(id).toBeDefined()
     if (!id) return
     const blob = await backends.photos.original(id)
     expect(blob.size).toBeGreaterThan(0)
     expect(blob.type).toBe('image/svg+xml')
+  })
+
+  it('pages the library and says when there is more', async () => {
+    const first = await backends.photos.list({ page: 1 })
+    const second = await backends.photos.list({ page: 2 })
+
+    expect(first.photos.length).toBeGreaterThan(0)
+    expect(first.photos.length).toBeLessThanOrEqual(MOCK_PHOTO_PAGE_SIZE)
+    // The placeholder library is bigger than one page and smaller than two.
+    expect(first.hasMore).toBe(true)
+    expect(second.hasMore).toBe(false)
+
+    // No id on both pages. A duplicate is not cosmetic here: it becomes a
+    // duplicate React key, which is a crash rather than a repeated tile.
+    const firstIds = new Set(first.photos.map((p) => p.id))
+    expect(second.photos.some((p) => firstIds.has(p.id))).toBe(false)
+  })
+
+  it('returns an empty page past the end rather than wrapping around', async () => {
+    const beyond = await backends.photos.list({ page: 99 })
+    expect(beyond.photos).toEqual([])
+    expect(beyond.hasMore).toBe(false)
   })
 
   it('searches case-insensitively and returns nothing for an empty query', async () => {

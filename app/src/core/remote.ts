@@ -2,9 +2,28 @@
  * Live backends. Arm's-length HTTP clients for Immich, Nextcloud and the host
  * agent — no vendor code is imported, vendored or linked (PLAN.md §13.4).
  *
- * Unverified against a real server: none exists yet. See for-human.md for the
- * two things already known to bite — the `all` permission on an Immich API key,
- * and the `x-api-key` header rather than `Authorization: Bearer`.
+ * UNVERIFIED: none of this has been run against a real server, because none
+ * exists yet. The *UI* is known to work, since the placeholder backend is
+ * exercised by tests and by hand; what is guessed is every wire format below.
+ * The full table with the risk on each row is for-human.md §7. In summary:
+ *
+ *   Immich    `POST /api/search/metadata` `{page, size}` — and whether the
+ *             results live at `assets.items`
+ *             `POST /api/search/smart` `{query}` — same envelope question
+ *             `GET  /api/albums` — a bare array, or a wrapper
+ *             `GET  /api/albums/{id}` — the shape of `assets`
+ *             `PUT  /api/assets/{id}` `{isFavorite}` — changed across versions
+ *             `DELETE /api/assets` `{ids, force}` — body shape
+ *             `PUT  /api/albums/{id}/assets` `{ids}` — ids, or a wrapper
+ *             `POST /api/shared-links` — `{type, assetIds}`, and `key` → URL
+ *   Nextcloud `PROPFIND` XML — parsed and tested here, but the *server's* XML
+ *             dialect is not; `MKCOL`, `MOVE`, `DELETE` — `Destination` must be
+ *             absolute and `Overwrite: F` refuses a collision
+ *
+ * Two things are already known to bite, and neither is a bug in this file: an
+ * Immich key needs the `all` permission (a scoped key 403s from every metadata
+ * route), and Immich authenticates with `x-api-key` rather than
+ * `Authorization: Bearer`.
  */
 
 import { nativeFetch, type NativeResponse } from '../native/bridge'
@@ -18,10 +37,17 @@ import type {
   FileEntry,
   Photo,
   PhotoId,
+  PhotoPage,
   ScoreResult,
   ServerStatus,
   TreeNode,
 } from './types'
+
+/**
+ * Photos per request. Immich's own default, and small enough that the first
+ * page arrives promptly over a tailnet while the rest streams in behind it.
+ */
+export const PHOTO_PAGE_SIZE = 100
 
 class HttpError extends Error {
   constructor(
@@ -73,7 +99,7 @@ class ImmichPhotoBackend implements PhotoBackend {
     return { 'x-api-key': this.apiKey, 'content-type': 'application/json' }
   }
 
-  async list(opts: { page: number; from?: Date; to?: Date }): Promise<Photo[]> {
+  async list(opts: { page: number; from?: Date; to?: Date }): Promise<PhotoPage> {
     return this.searchMetadata({ page: opts.page, from: opts.from, to: opts.to })
   }
 
@@ -81,16 +107,23 @@ class ImmichPhotoBackend implements PhotoBackend {
    * `POST /api/search/metadata` is the endpoint behind the timeline. Immich
    * does the paging and filtering; the client only renders what comes back
    * (PLAN.md §11 — "server-side ML is free via API").
+   *
+   * UNVERIFIED: the response envelope — specifically whether `assets.items` is
+   * the right path, and whether `nextPage` exists — is a guess. `hasMore` is
+   * therefore derived from the page coming back full rather than from any
+   * field, so a wrong guess about the envelope cannot silently stop the
+   * timeline at one page.
    */
   private async searchMetadata(opts: {
     page?: number
     size?: number
     from?: Date
     to?: Date
-  }): Promise<Photo[]> {
+  }): Promise<PhotoPage> {
+    const size = opts.size ?? PHOTO_PAGE_SIZE
     const body: Record<string, unknown> = {
       page: opts.page ?? 1,
-      size: opts.size ?? 100,
+      size,
     }
     if (opts.from) body.takenAfter = opts.from.toISOString()
     if (opts.to) body.takenBefore = opts.to.toISOString()
@@ -101,7 +134,8 @@ class ImmichPhotoBackend implements PhotoBackend {
       body: JSON.stringify(body),
     })
     const json = (await res.json()) as { assets?: { items?: ImmichAsset[] } }
-    return (json.assets?.items ?? []).map(toPhoto)
+    const items = json.assets?.items ?? []
+    return { photos: items.map(toPhoto), hasMore: items.length >= size }
   }
 
   async get(id: PhotoId): Promise<Photo> {

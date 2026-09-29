@@ -66,8 +66,22 @@ function Shell() {
           }}
         >
           {/* Screens position themselves absolutely, so this is the containing
-              block they fill. */}
-          <ScreenRouter screen={screen} />
+              block they fill — including for the keyed wrapper below, which
+              moves the entrance animation off the screens themselves.
+
+              Keyed on the screen so React remounts on arrival, which is what
+              restarts the animation. It reuses `fadeIn` from base.css rather
+              than declaring a near-identical keyframe. */}
+          <div
+            key={screen}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              animation: 'fadeIn var(--motion-transition-enter) both',
+            }}
+          >
+            <ScreenRouter screen={screen} />
+          </div>
           <LeanCorner />
           <SearchPalette />
         </main>

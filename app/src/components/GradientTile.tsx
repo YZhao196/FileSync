@@ -74,7 +74,9 @@ export function GradientTile({
             height: '100%',
             objectFit: 'cover',
             opacity: loaded ? 1 : 0,
-            transition: 'opacity 180ms ease',
+            // Token rather than a literal duration, so this thins the same way
+            // every other transition does when the motion tokens are tuned.
+            transition: 'opacity var(--motion-transition-enter)',
           }}
         />
       )}

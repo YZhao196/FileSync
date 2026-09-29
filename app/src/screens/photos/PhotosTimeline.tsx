@@ -1,11 +1,10 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@primer/react'
 import { ChoiceScreen } from '../../components/ChoiceScreen'
 import { FolderPicker } from '../../components/FolderPicker'
 import { carbonIcon, Icon, IconBadge } from '../../components/Icon'
 import { useToast } from '../../components/Toaster'
-import type { PhotoId } from '../../core/types'
-import { useAsync } from '../../hooks/useAsync'
+import type { Photo, PhotoId } from '../../core/types'
 import { FILE_MANAGER } from '../../lib/platform'
 import { revealInSystem } from '../../native/bridge'
 import { useApp } from '../../state/store'
@@ -151,7 +150,104 @@ function NativeFolder({
 function Timeline({ onReset }: { onReset: () => void }) {
   const { backends, decisionPipeline } = useApp()
   const { show } = useToast()
-  const { data, loading, reload } = useAsync(() => backends.photos.list({ page: 1 }), [backends])
+
+  const [photos, setPhotos] = useState<Photo[]>([])
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+
+  /**
+   * Guards against a second page being asked for while the first is still in
+   * flight. State alone is not enough: a scroll fires many events in one tick,
+   * and `loadingMore` would still read false for all of them.
+   */
+  const inFlight = useRef(false)
+
+  /** Pages 1..n, in order and de-duplicated. */
+  const fetchPages = useCallback(
+    async (n: number) => {
+      const results = await Promise.all(
+        Array.from({ length: n }, (_, i) => backends.photos.list({ page: i + 1 })),
+      )
+      const merged: Photo[] = []
+      const seen = new Set<PhotoId>()
+      for (const result of results) {
+        for (const photo of result.photos) {
+          if (seen.has(photo.id)) continue
+          seen.add(photo.id)
+          merged.push(photo)
+        }
+      }
+      return { photos: merged, hasMore: results[results.length - 1]?.hasMore ?? false }
+    },
+    [backends],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetchPages(1)
+      .then((first) => {
+        if (cancelled) return
+        setPhotos(first.photos)
+        setPage(1)
+        setHasMore(first.hasMore)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setPhotos([])
+        setHasMore(false)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [fetchPages])
+
+  /**
+   * Reloads everything currently loaded, not just the first page: after
+   * favouriting a photo the user may be several hundred items down, and being
+   * bounced back to the top is worse than a handful of extra requests.
+   */
+  const reload = useCallback(async () => {
+    try {
+      const refreshed = await fetchPages(page)
+      setPhotos(refreshed.photos)
+      setHasMore(refreshed.hasMore)
+    } catch {
+      // A failed refresh leaves what is on screen alone — emptying a library
+      // because one request failed would read as data loss.
+    }
+  }, [fetchPages, page])
+
+  const loadMore = useCallback(() => {
+    if (inFlight.current || !hasMore) return
+    inFlight.current = true
+    setLoadingMore(true)
+    backends.photos
+      .list({ page: page + 1 })
+      .then((next) => {
+        setPhotos((prev) => {
+          // The server may re-send an item that landed between pages. A
+          // duplicate id becomes a duplicate React key, which is a crash.
+          const seen = new Set(prev.map((p) => p.id))
+          return [...prev, ...next.photos.filter((p) => !seen.has(p.id))]
+        })
+        setPage((n) => n + 1)
+        setHasMore(next.hasMore)
+      })
+      .catch(() => {
+        // Stop asking rather than retrying on every scroll frame.
+        setHasMore(false)
+      })
+      .finally(() => {
+        inFlight.current = false
+        setLoadingMore(false)
+      })
+  }, [backends, page, hasMore])
 
   const [scores, setScores] = useState<Map<PhotoId, number>>(new Map())
   const [scoring, setScoring] = useState(false)
@@ -222,10 +318,13 @@ function Timeline({ onReset }: { onReset: () => void }) {
 
   return (
     <PhotoCollection
-      photos={data}
+      photos={photos}
       loading={loading}
       backend={backends.photos}
       onChanged={reload}
+      hasMore={hasMore}
+      loadingMore={loadingMore}
+      onLoadMore={loadMore}
       empty="No photos yet. Uploads from your phone appear here."
       decisions={decisions}
       leading={

@@ -5,7 +5,7 @@ see [What exists](#what-exists) at the bottom.
 
 The front end is complete and verified in a browser: every control acts on a
 real backend (the placeholder one, or live Immich/Nextcloud), including album
-contents, search, and every photo and file action. 98 unit tests pass, the
+contents, search, and every photo and file action. 100 unit tests pass, the
 typecheck is clean, and the production build succeeds.
 
 What follows is what a person still has to do, and what has never been run.
@@ -264,8 +264,8 @@ answers.
 ML container. `moondream` adds roughly 2 GB of RAM while loaded and may push it
 into swap. Scoring is sequential on purpose — one photo at a time — and a whole
 library is a day-scale batch, not a button. Score the newest photos, not
-everything. The review chip ranks the newest 100, because the client still has no
-paging (§9).
+everything. The review chip ranks whatever the timeline has loaded, so scroll
+further if the queue looks short.
 
 **What it will not do.** The caption is the vision model's description of what is
 in the frame, not a judgement of how good the photograph is. The scoring model can
@@ -293,7 +293,6 @@ would need them.
 | **Replace an existing server** | Documents its flow, does not run it. The last large piece — see §5 |
 | **Mobile app** | The design prototype covers mobile; only desktop is built. A separate React Native codebase (PLAN.md §11) |
 | **Code signing, notarisation, installer, auto-update** | See §1 |
-| **Timeline paging** | `list()` fetches page 1 (100 items). There is no infinite scroll — a library larger than that shows the newest 100 |
 | **People, Places, a map** | Deliberately removed. Immich's own web UI already groups faces and shows locations, so the app was duplicating software you already run. The screens, their nav entries, the `/api/people` and EXIF-place calls, and their tests all came out — the photo section is Timeline and Albums, and nothing is left half-wired. Bringing them back means rewriting them |
 | **Albums: create, delete, cover images** | Viewing and adding to albums works. Creating one is Immich's job. Covers are server gradients, not the first photo |
 | **Upload** | Deliberate, and now a hand-off rather than a dead button: "Upload in Nextcloud" opens the current folder in Nextcloud's own web UI. Background sync and resume are the hard parts and they are solved there |
@@ -302,7 +301,7 @@ would need them.
 | **PDF / office previews** | Images and text render inline; anything else gets its metadata and a Download button rather than a broken frame |
 | **QR pairing** | First Run mentions it as "later" |
 | **Automatic album filing** | The pipeline *suggests* an album inside the add-to-album dialog; it never files without a tap. Filing on its own needs a watcher, cannot be reviewed before it acts, and a mis-filed photo is silent corruption of your own organisation |
-| **Cull the whole library** | The review chip ranks the newest 100 photos, and scoring is sequential on the server. Incremental by design — see §8 |
+| **Cull the whole library** | The timeline pages 100 at a time, and the review chip ranks what is loaded. Scoring is sequential on the server, so a whole library is a long batch. Incremental by design — see §8 |
 | **Caption freshness for edited photos** | Captions are keyed by Immich asset id and survive an in-place edit of the photo. "Clear captions" in Settings is the manual reset |
 | **The privacy gate** | The pipeline can score and route, but it does not gate what reaches the cloud backup |
 
@@ -333,7 +332,8 @@ designs were followed.
 | Thing | State |
 |---|---|
 | `app/` — React + TypeScript + Vite frontend | Built, typechecks strict, production build passes |
-| 98 unit tests | Passing across 7 files, plus 11 checks on the caption store |
+| 100 unit tests | Passing across 7 files, plus 11 checks on the caption store |
+| Timeline paging | Pages 100 at a time, loading as you scroll, and says when it has reached the end |
 | All screens | First Run, Provision, Server, Photos (Timeline / Albums / album contents), Files, Settings, Replace server |
 | Photo actions | Favourite, share, add to album, download, delete — single and in bulk |
 | File actions | Preview, download, new folder, rename, delete |

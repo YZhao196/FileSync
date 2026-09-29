@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode, type UIEvent } from 'react'
 import { Button } from '@primer/react'
 import { Blankslate } from '@primer/react/experimental'
 import { AlbumPicker, ConfirmDialog, ShareDialog } from '../../components/Dialogs'
@@ -50,6 +50,9 @@ export function PhotoCollection({
   showFilters = true,
   defaultCols = 6,
   decisions,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
 }: {
   photos: Photo[] | null
   loading: boolean
@@ -60,6 +63,11 @@ export function PhotoCollection({
   showFilters?: boolean
   defaultCols?: number
   decisions?: DecisionHooks
+  /** True while the server has more behind what is loaded. */
+  hasMore?: boolean
+  loadingMore?: boolean
+  /** Asks for the next page. Called as the grid nears its end. */
+  onLoadMore?: () => void
 }) {
   const { show } = useToast()
 
@@ -295,6 +303,17 @@ export function PhotoCollection({
 
   const allSelected = visible.length > 0 && selected.size === visible.length
 
+  /**
+   * Asks for the next page before the user reaches the end, so the grid rarely
+   * shows a gap. The runway is about a screen's worth: waiting for the last
+   * pixel would start the fetch while the user is already looking at the bottom.
+   */
+  const handleScroll = (e: UIEvent<HTMLDivElement>) => {
+    if (!onLoadMore || !hasMore || loadingMore) return
+    const el = e.currentTarget
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 600) onLoadMore()
+  }
+
   return (
     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div
@@ -428,7 +447,10 @@ export function PhotoCollection({
       </div>
 
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', padding: '12px 50px 12px 20px' }}>
+        <div
+          onScroll={handleScroll}
+          style={{ position: 'absolute', inset: 0, overflowY: 'auto', padding: '12px 50px 12px 20px' }}
+        >
           {loading ? (
             <SkeletonGrid cols={gridCols} />
           ) : visible.length === 0 ? (
@@ -467,6 +489,11 @@ export function PhotoCollection({
                       photo={p}
                       backend={backend}
                       selected={selected.has(p.id)}
+                      // Opacity only. A transform on every tile would make a
+                      // page of photos look like it is settling rather than
+                      // arriving. Disabled wholesale under prefers-reduced-motion
+                      // by the rule in base.css.
+                      style={{ animation: 'fadeInFast var(--motion-transition-enter) both' }}
                       onClick={() => {
                         if (selecting) toggle(p.id)
                         else setViewerIndex(visible.indexOf(p))
@@ -476,6 +503,22 @@ export function PhotoCollection({
                 </div>
               </section>
             ))
+          )}
+
+          {/* Only in a date-ordered view: under the review filter this is a
+              statement about the queue, not about the library, and the queue is
+              ranked from what happens to be loaded. */}
+          {!loading && filter !== 'review' && visible.length > 0 && (loadingMore || !hasMore) && (
+            <div
+              className="helper-text-01"
+              style={{
+                color: 'var(--text-helper)',
+                textAlign: 'center',
+                padding: 'var(--spacing-06) 0 var(--spacing-03)',
+              }}
+            >
+              {loadingMore ? 'Loading more…' : 'End of your library.'}
+            </div>
           )}
         </div>
 

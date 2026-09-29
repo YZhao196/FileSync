@@ -1,11 +1,8 @@
 /*
  * BuildNexus patches — gaps in the design system's own remap.
  *
- * `buildnexus.css` points most of Primer's variables at Carbon tokens, but the
- * **disabled** button fills are not among them. A disabled primary button
- * therefore renders Primer's own green — #95d8a6 on light, #105823 on dark —
- * instead of Carbon's neutral disabled grey, which reads as "this is a
- * different, working button" rather than "this action is unavailable".
+ * `buildnexus.css` points most of Primer's variables at Carbon tokens, but two
+ * groups are not covered, and both fail silently rather than loudly.
  *
  * A separate file rather than an edit to `buildnexus.css`, so the vendored
  * stylesheet stays byte-identical to the design system and can be re-copied
@@ -15,6 +12,11 @@
 :root,
 [data-theme='light'],
 [data-theme='dark'] {
+  /* ── Disabled fills ─────────────────────────────────────────────────────
+     Not remapped upstream, so a disabled primary button renders Primer's own
+     green — #95d8a6 on light, #105823 on dark — instead of Carbon's neutral
+     grey. That reads as "a different, working button" rather than "this
+     action is unavailable". */
   --button-primary-bgColor-disabled: var(--button-disabled);
   --button-primary-borderColor-disabled: var(--button-disabled);
   --button-primary-fgColor-disabled: var(--text-on-color-disabled);
@@ -23,4 +25,27 @@
      fill; neither is remapped upstream. */
   --control-bgColor-disabled: var(--button-disabled);
   --button-danger-bgColor-disabled: var(--button-disabled);
+
+  /* ── Motion ─────────────────────────────────────────────────────────────
+     BuildNexus's semantic motion tokens — `--motion-duration-micro`,
+     `--motion-transition-enter` and friends — are defined in `buildnexus.css`
+     as aliases of Carbon's `--base-duration-*` and `--base-easing-*`. Those
+     base tokens are not part of what was vendored, so every alias resolved to
+     nothing: `transition: <empty>` is invalid, the declaration is dropped, and
+     the design system's motion was inert with no error anywhere.
+
+     These are Carbon's standard values, which is what the vendored sheet
+     expects to find. Defining them here rather than editing the aliases means
+     `--motion-transition-*` starts working as designed. */
+  --base-duration-100: 70ms;
+  --base-duration-200: 110ms;
+  --base-duration-300: 150ms;
+  --base-duration-400: 240ms;
+  --base-duration-500: 400ms;
+
+  --base-easing-ease: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --base-easing-easeOut: cubic-bezier(0, 0, 0.38, 0.9);
+  --base-easing-easeIn: cubic-bezier(0.2, 0, 1, 0.9);
+  --base-easing-easeInOut: cubic-bezier(0.4, 0.14, 0.3, 1);
+  --base-easing-linear: linear;
 }
