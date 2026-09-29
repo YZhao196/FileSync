@@ -650,7 +650,10 @@ The whole strategy follows from that: run the servers **stock**, configure them 
 - [ ] Confirm exact Dell model
 - [ ] Decide: Backblaze B2, or restic into an existing paid cloud subscription
 - [ ] Set Immich's trash retention to match the 7-day value
-- [ ] **Pick a product name** (§13.6) — free now, tedious later
+- [x] **Product name settled: FileSynapse.** Decided 2026-09-29, after it had
+      already reached the installer, the app, the agent and the docs. §13 warned
+      that naming later is a tedious find-and-replace; it was right — the old
+      name had reached six shipped defaults before anyone noticed.
 
 ---
 

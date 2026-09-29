@@ -16,10 +16,9 @@ What follows is what a person still has to do, and what has never been run.
 
 **Why this needs you:** these are decisions and accounts, not code.
 
-1. **The product name is FileSynapse.** PLAN.md §16 still lists it as open.
-   Settle it or change it before it appears in an installer or a store listing.
-2. **Icons are generated** from `filesyn-icon.png` into `app/src-tauri/icons/`.
-   Replace the source PNG if the name or mark changes, then re-run:
+1. **Icons are generated** from `filesyn-icon.png` into `app/src-tauri/icons/`.
+   The name is settled — FileSynapse — so this only needs revisiting if the mark
+   changes. Replace the source PNG, then re-run:
    ```bash
    cd app && npx tauri icon path/to/logo.png
    ```
@@ -388,8 +387,8 @@ would need them.
 The designs in `FileSync Frontend Designs.html` are newer than the specs, and the
 designs were followed.
 
-1. **Product name is FileSynapse**, not ESPNAS. PLAN.md §16 still lists the name
-   as open.
+1. **Product name is FileSynapse**, not ESPNAS. Settled 2026-09-29; PLAN.md §16
+   records it closed.
 2. **The Files browser exists** — as a module offering *in-app browser* or *open
    in system explorer*. UI-DESKTOP.md says Files is cut entirely. It now supports
    preview, download, new folder, rename and delete.
