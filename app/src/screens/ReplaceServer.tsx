@@ -66,6 +66,24 @@ export function ReplaceServer() {
   const [transfer, setTransfer] = useState<Transfer>('sync')
   const [disposition, setDisposition] = useState<Disposition>('keep')
 
+  /**
+   * Only needed by the restore route, and only asked for then.
+   *
+   * Restoring means reading the old machine's Backblaze repository, which needs
+   * the credentials that wrote it. Provisioning writes them to
+   * /etc/filesynapse/backup.env, and `restic restore` reads that file — so a
+   * restore chosen without them would fail at the last step, after the transfer
+   * route had already been decided and explained to the user.
+   */
+  const [b2Bucket, setB2Bucket] = useState('')
+  const [b2KeyId, setB2KeyId] = useState('')
+  const [b2AppKey, setB2AppKey] = useState('')
+  const [resticPassword, setResticPassword] = useState('')
+
+  const backupReady = Boolean(
+    b2Bucket.trim() && b2KeyId.trim() && b2AppKey.trim() && resticPassword,
+  )
+
   const [check, setCheck] = useState<Preflight | null>(null)
   const [run, setRun] = useState<ProvisionRun | null>(null)
   const [running, setRunning] = useState(false)
@@ -121,9 +139,12 @@ export function ReplaceServer() {
       tailscaleName: `${connection.address || 'filesynapse'}-new`,
       transfer,
       sourceAddress: connection.address || undefined,
-      // Backup credentials are not collected again here: the replace flow is
-      // about moving data between two machines, and the target server's bucket
-      // is configured on the handover step.
+      // Only the restore route needs these: it reads the old machine's
+      // repository rather than the old machine. Sync ignores them.
+      b2Bucket: transfer === 'restore' ? b2Bucket.trim() || undefined : undefined,
+      b2KeyId: transfer === 'restore' ? b2KeyId.trim() || undefined : undefined,
+      b2AppKey: transfer === 'restore' ? b2AppKey.trim() || undefined : undefined,
+      resticPassword: transfer === 'restore' ? resticPassword || undefined : undefined,
     })
     setStarting(false)
     if (!started) {
@@ -270,11 +291,43 @@ export function ReplaceServer() {
               }
             />
 
+            {transfer === 'restore' && (
+              <>
+                <Body>
+                  Restoring reads the backup repository itself rather than the old
+                  machine, so it needs the credentials that wrote it — the same
+                  values the old server was given when it was set up.
+                </Body>
+                <TextField
+                  label="Bucket name"
+                  value={b2Bucket}
+                  onChange={setB2Bucket}
+                  placeholder="my-filesynapse"
+                />
+                <TextField label="B2 key ID" value={b2KeyId} onChange={setB2KeyId} />
+                <TextField label="B2 application key" value={b2AppKey} onChange={setB2AppKey} secret />
+                <TextField
+                  label="restic password"
+                  value={resticPassword}
+                  onChange={setResticPassword}
+                  secret
+                />
+                <Footnote>
+                  Without these the restore fails at its last step, after the
+                  machine has already been configured.
+                </Footnote>
+              </>
+            )}
+
             <Actions>
               <Button variant="default" onClick={() => setStep('folders')}>
                 Back
               </Button>
-              <Button variant="primary" onClick={() => setStep('provision')}>
+              <Button
+                variant="primary"
+                onClick={() => setStep('provision')}
+                disabled={transfer === 'restore' && !backupReady}
+              >
                 Continue
               </Button>
             </Actions>
@@ -549,6 +602,36 @@ function FolderField({
         </Button>
       </div>
       <FormControl.Caption>{hint}</FormControl.Caption>
+    </FormControl>
+  )
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+  secret,
+  placeholder,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  secret?: boolean
+  placeholder?: string
+}) {
+  return (
+    <FormControl>
+      <FormControl.Label>{label}</FormControl.Label>
+      <TextInput
+        block
+        type={secret ? 'password' : 'text'}
+        value={value}
+        aria-label={label}
+        placeholder={placeholder}
+        autoComplete="off"
+        spellCheck={false}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </FormControl>
   )
 }

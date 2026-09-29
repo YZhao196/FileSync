@@ -156,6 +156,9 @@ addFile('/photos/beach.jpg', 2_411_724, 'image/jpeg', 7)
 
 const GIB = 1024 ** 3
 
+const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString()
+const hoursFromNow = (h: number) => new Date(Date.now() + h * 3600_000).toISOString()
+
 const MOCK_SERVER_STATUS: ServerStatus = {
   reachable: true,
   services: [
@@ -169,9 +172,16 @@ const MOCK_SERVER_STATUS: ServerStatus = {
     { label: 'Cloud drive', usedBytes: 86 * GIB, totalBytes: 512 * GIB },
   ],
   backup: {
-    lastRunAt: '2026-09-12T03:14:00',
+    // Relative to now, not a fixed date.
+    //
+    // A hardcoded timestamp ages: within two days of writing one, the backup
+    // reads as stale, and the replace flow's restore route — correctly refused
+    // while the cloud copy is not current — becomes unreachable in development.
+    // The mock has to be representative whenever it is run, not just on the day
+    // it was written.
+    lastRunAt: hoursAgo(6),
     lastRunOk: true,
-    nextRunAt: '2026-09-13T03:14:00',
+    nextRunAt: hoursFromNow(18),
     snapshotCount: 47,
     cloudTotalBytes: 23 * GIB,
   },

@@ -421,9 +421,21 @@ fi
 # ── Transfer, when replacing another server ──────────────────────────────
 
 if [[ -n "${SOURCE_ADDRESS:-}" && "${TRANSFER:-fresh}" != "fresh" ]]; then
-  step "Install transfer tools" bash -c 'apt-get install -y -qq rsync'
+  step "Install transfer tools" bash -c 'apt-get install -y -qq rsync openssh-client'
 
   if [[ "${TRANSFER}" == "sync" ]]; then
+    # Access first, as a step of its own.
+    #
+    # Nothing sets up a key for the old server, so this routinely is the thing
+    # that is missing — and without this check the failure arrives from rsync as a
+    # password prompt nobody is watching, which the app can only report as "Sync
+    # from the old server: failed". That names the symptom. This names the cause,
+    # before an hour of copying has been attempted.
+    step "Check access to the old server" bash -c "
+      ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 \\
+          'root@${SOURCE_ADDRESS}' true
+    "
+
     # Copy the current state exactly. The old server must stay up until this
     # finishes and is verified — that is why it is a step and not a background
     # job nobody watches.
