@@ -31,7 +31,11 @@ export function Provision() {
   const [step, setStep] = useState<Step>('check')
   const [check, setCheck] = useState<Preflight | null>(null)
   const [photosFolder, setPhotosFolder] = useState('/srv/photos')
-  const [filesFolder, setFilesFolder] = useState('/srv/files')
+  // `/srv/cloud`, not `/srv/files`. PLAN.md §5 mounts the second drive there,
+  // the fstab instructions in the README use it, and the host agent's default
+  // points at it — this screen was the one place that disagreed, so accepting
+  // the defaults produced a server the agent then reported no disk usage for.
+  const [filesFolder, setFilesFolder] = useState('/srv/cloud')
   const [name, setName] = useState('filesynapse')
 
   const [b2Bucket, setB2Bucket] = useState('')

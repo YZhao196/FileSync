@@ -8,7 +8,7 @@
 #
 # The app runs this. It is also runnable by hand for debugging:
 #
-#   sudo PHOTOS_DIR=/srv/photos FILES_DIR=/srv/files \
+#   sudo PHOTOS_DIR=/srv/photos FILES_DIR=/srv/cloud \
 #        TAILSCALE_NAME=filesynapse ./provision.sh
 #
 # Output protocol: one line per event, tab-separated —
@@ -25,7 +25,7 @@
 set -euo pipefail
 
 PHOTOS_DIR="${PHOTOS_DIR:-/srv/photos}"
-FILES_DIR="${FILES_DIR:-/srv/files}"
+FILES_DIR="${FILES_DIR:-/srv/cloud}"
 TAILSCALE_NAME="${TAILSCALE_NAME:-filesynapse}"
 TZ_NAME="${TZ_NAME:-UTC}"
 B2_BUCKET="${B2_BUCKET:-}"

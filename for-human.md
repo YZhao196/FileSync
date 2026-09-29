@@ -169,7 +169,7 @@ backup credentials, and runs a real script.
 **Treat the first run as a test, on a machine you can rebuild.**
 
 ```bash
-sudo PHOTOS_DIR=/srv/photos FILES_DIR=/srv/files \
+sudo PHOTOS_DIR=/srv/photos FILES_DIR=/srv/cloud \
      TAILSCALE_NAME=filesynapse \
      ./infra/provision/provision.sh
 ```

@@ -18,7 +18,7 @@ By hand:
 
 ```bash
 sudo PHOTOS_DIR=/srv/photos \
-     FILES_DIR=/srv/files \
+     FILES_DIR=/srv/cloud \
      TAILSCALE_NAME=filesynapse \
      ./provision.sh
 ```
@@ -42,7 +42,7 @@ Services started: Immich (`:2283`), Nextcloud (`:8080`), MariaDB, Redis.
 | Variable | Default | Meaning |
 |---|---|---|
 | `PHOTOS_DIR` | `/srv/photos` | Immich's library |
-| `FILES_DIR` | `/srv/files` | Nextcloud's data |
+| `FILES_DIR` | `/srv/cloud` | Nextcloud's data — the second drive, per PLAN.md §5 |
 | `TAILSCALE_NAME` | `filesynapse` | The name everything else reaches this box by |
 | `TAILSCALE_TEMP_NAME` | — | Join under a temporary name while replacing another server |
 | `TZ_NAME` | `UTC` | Passed to Immich |
