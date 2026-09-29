@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ActionList, Button, ConfirmationDialog, Dialog, FormControl, TextInput } from '@primer/react'
 import type { Album } from '../core/types'
+import { Icon } from './Icon'
 
 /**
  * The small set of modal surfaces the app needs.
@@ -129,15 +130,20 @@ export function AlbumPicker({
   albums,
   loading,
   count,
+  suggested,
   onPick,
   onCancel,
 }: {
   albums: Album[] | null
   loading: boolean
   count: number
+  /** Album name the decision pipeline proposed, if it is on and answered. */
+  suggested?: string | null
   onPick: (album: Album) => void
   onCancel: () => void
 }) {
+  const proposal = suggested ? albums?.find((a) => a.name === suggested) : undefined
+
   return (
     <Modal title={`Add ${count} item${count === 1 ? '' : 's'} to an album`} onClose={onCancel}>
       {loading ? (
@@ -149,25 +155,51 @@ export function AlbumPicker({
           No albums on the server yet.
         </p>
       ) : (
-        <ActionList>
-          {albums.map((a) => (
-            <ActionList.Item key={a.id} onSelect={() => onPick(a)}>
-              <ActionList.LeadingVisual>
-                <span
-                  aria-hidden="true"
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 'var(--border-radius-small)',
-                    background: `linear-gradient(145deg, ${a.gradient[0]}, ${a.gradient[1]})`,
-                  }}
-                />
-              </ActionList.LeadingVisual>
-              {a.name}
-              <ActionList.TrailingVisual>{a.count}</ActionList.TrailingVisual>
-            </ActionList.Item>
-          ))}
-        </ActionList>
+        <>
+          {proposal && (
+            <div style={{ marginBottom: 'var(--spacing-04)' }}>
+              <div
+                className="label-01"
+                style={{ color: 'var(--text-secondary)', marginBottom: 'var(--spacing-02)' }}
+              >
+                Suggested
+              </div>
+              <ActionList>
+                <ActionList.Item onSelect={() => onPick(proposal)}>
+                  <ActionList.LeadingVisual>
+                    <Icon name="star" size={16} />
+                  </ActionList.LeadingVisual>
+                  {proposal.name}
+                  <ActionList.TrailingVisual>{proposal.count}</ActionList.TrailingVisual>
+                </ActionList.Item>
+              </ActionList>
+              {/* Stated rather than implied: the row above is the pipeline's
+                  opinion, and it stays an opinion until this is tapped. */}
+              <p className="helper-text-01" style={{ color: 'var(--text-helper)', marginTop: 'var(--spacing-02)' }}>
+                Based on what is in the photographs. Nothing is added until you choose.
+              </p>
+            </div>
+          )}
+          <ActionList>
+            {albums.map((a) => (
+              <ActionList.Item key={a.id} onSelect={() => onPick(a)}>
+                <ActionList.LeadingVisual>
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: 'var(--border-radius-small)',
+                      background: `linear-gradient(145deg, ${a.gradient[0]}, ${a.gradient[1]})`,
+                    }}
+                  />
+                </ActionList.LeadingVisual>
+                {a.name}
+                <ActionList.TrailingVisual>{a.count}</ActionList.TrailingVisual>
+              </ActionList.Item>
+            ))}
+          </ActionList>
+        </>
       )}
     </Modal>
   )

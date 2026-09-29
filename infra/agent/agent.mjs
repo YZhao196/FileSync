@@ -21,6 +21,8 @@ import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { hostname, uptime as osUptime } from 'node:os'
 import { promisify } from 'node:util'
+import { createCaptionStore } from './captionStore.mjs'
+import { createDecisions } from './decisions.mjs'
 
 const exec = promisify(execFile)
 
@@ -43,6 +45,40 @@ const BACKUP_STATUS_PATH =
 
 /** How old a snapshot may be before an inferred run reads as not current. */
 const BACKUP_CURRENT_MS = 36 * 3600 * 1000
+
+/**
+ * The optional decision pipeline. Every one of these defaults to empty, and an
+ * empty URL means the routes report "unavailable" without contacting anything —
+ * the same shape as the collectors above, where a panel saying so beats a 500.
+ *
+ * It is deliberately not provisioned automatically: Immich's own ML container
+ * already does semantic search, so this is an option the user opts into rather
+ * than something an install brings with it.
+ */
+const OLLAMA_URL = (process.env.AGENT_OLLAMA_URL ?? '').replace(/\/+$/, '')
+const LAYLA_URL = (process.env.AGENT_LAYLA_URL ?? '').replace(/\/+$/, '')
+const IMMICH_URL = (process.env.AGENT_IMMICH_URL ?? '').replace(/\/+$/, '')
+const IMMICH_API_KEY = process.env.AGENT_IMMICH_API_KEY ?? ''
+const VISION_MODEL = process.env.AGENT_VISION_MODEL ?? 'moondream'
+const DECISION_BATCH = Number(process.env.AGENT_DECISION_BATCH ?? 8) || 8
+const CAPTION_PATH =
+  process.env.AGENT_CAPTION_PATH ?? '/var/lib/filesynapse/decisions/captions.json'
+
+const captions = createCaptionStore({
+  path: CAPTION_PATH,
+  model: VISION_MODEL,
+  onWarn: (msg) => console.warn(`[agent] ${msg}`),
+})
+
+const decisions = createDecisions({
+  ollamaUrl: OLLAMA_URL,
+  laylaUrl: LAYLA_URL,
+  immichUrl: IMMICH_URL,
+  immichApiKey: IMMICH_API_KEY,
+  model: VISION_MODEL,
+  captions,
+  batch: DECISION_BATCH,
+})
 
 /* ── shell ─────────────────────────────────────────────────────────────── */
 
@@ -279,6 +315,41 @@ async function restartService(name) {
 
 /* ── http ──────────────────────────────────────────────────────────────── */
 
+/**
+ * The agent had no request-body reader — every route before these was bodyless.
+ * Bounded, because this listens on the tailnet and an unbounded read hands free
+ * memory to whoever asks. An unparseable or oversized body resolves to `null`,
+ * which the routes treat as "no ids" rather than as an error.
+ */
+function readJson(req, limitBytes = 64 * 1024) {
+  return new Promise((resolve) => {
+    const chunks = []
+    let size = 0
+    req.on('data', (chunk) => {
+      size += chunk.length
+      if (size > limitBytes) {
+        req.destroy()
+        return
+      }
+      chunks.push(chunk)
+    })
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+      } catch {
+        resolve(null)
+      }
+    })
+    req.on('error', () => resolve(null))
+  })
+}
+
+/** Ids come from the client, so they are treated as untrusted input. */
+function readIds(body) {
+  if (!Array.isArray(body?.ids)) return []
+  return body.ids.filter((id) => typeof id === 'string' && id).slice(0, 500)
+}
+
 function authorized(req) {
   if (!TOKEN) return true // no token configured: assume a trusted network
   const header = req.headers.authorization ?? ''
@@ -333,6 +404,30 @@ const server = createServer(async (req, res) => {
         : send(res, 404, { error: result.reason })
     }
 
+    /* The optional decision pipeline. Every failure it can model — a stopped
+       model, one that was never pulled, an unreachable Immich — comes back as
+       200 with `ok: false` and a reason, so the app can say something specific
+       instead of showing a failure that reads as the server being broken. */
+    if (req.method === 'GET' && url.pathname === '/api/decisions/status') {
+      return send(res, 200, await decisions.status())
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/decisions/score') {
+      return send(res, 200, await decisions.scoreIds(readIds(await readJson(req))))
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/decisions/albums') {
+      const body = await readJson(req)
+      const albums = Array.isArray(body?.albums)
+        ? body.albums.filter((a) => typeof a === 'string' && a).slice(0, 200)
+        : []
+      return send(res, 200, await decisions.suggestAlbums(readIds(body), albums))
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/decisions/cache/clear') {
+      return send(res, 200, { cleared: await decisions.clearCache() })
+    }
+
     send(res, 404, { error: 'not found' })
   } catch (err) {
     send(res, 500, { error: err?.message ?? 'agent error' })
@@ -342,5 +437,9 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[agent] listening on :${PORT}`)
   console.log(`[agent] photos=${PHOTOS_PATH} cloud=${CLOUD_PATH} services=${SERVICES.join(',')}`)
+  console.log(
+    `[agent] decisions=${OLLAMA_URL ? VISION_MODEL : 'off'}@${OLLAMA_URL || '-'} ` +
+      `layla=${LAYLA_URL || 'off'} captions=${CAPTION_PATH}`,
+  )
   if (!TOKEN) console.warn('[agent] AGENT_TOKEN is unset — the API is unauthenticated')
 })

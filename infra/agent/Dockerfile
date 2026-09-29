@@ -4,7 +4,9 @@ FROM node:20-alpine
 RUN apk add --no-cache restic docker-cli
 
 WORKDIR /app
-COPY agent.mjs .
+# Every module, not just the entry point — the agent grew a caption store and a
+# decision client, and a COPY of one file would fail at import time.
+COPY *.mjs ./
 
 EXPOSE 8787
 

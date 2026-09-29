@@ -7,17 +7,34 @@ import { PhotoTile } from '../../components/PhotoTile'
 import { useToast } from '../../components/Toaster'
 import type { PhotoBackend } from '../../core/backends'
 import type { Album, Photo, PhotoId } from '../../core/types'
-import { safeFilename, applyFilter, groupAnchor, groupPhotos, shortLabel, FILTERS, type PhotoFilter } from '../../lib/photos'
+import { safeFilename, applyFilter, groupAnchor, groupPhotos, shortLabel, FILTERS, REVIEW_FILTER, type PhotoFilter } from '../../lib/photos'
 import { saveFile } from '../../native/bridge'
 import { PhotoViewer } from './PhotoViewer'
 
 /**
+ * What the optional decision pipeline contributes to this screen, if anything.
+ *
+ * Passed by the timeline and by nothing else. Absent means the pipeline is off,
+ * and every surface that depends on it is absent with it — rather than present,
+ * permanently empty, and reading as broken.
+ */
+export interface DecisionHooks {
+  /** Scores by photo id. Empty until the user has asked for a scoring pass. */
+  scores: ReadonlyMap<PhotoId, number>
+  scoring: boolean
+  /** Ask for scores. The caller drives the backlog; see PhotosTimeline. */
+  onScore: (ids: PhotoId[]) => void
+  /** Album name per photo, or empty when the decision model is unavailable. */
+  suggestAlbum: (ids: PhotoId[], albums: string[]) => Promise<Map<PhotoId, string>>
+}
+
+/**
  * A wall of photos with everything that can be done to them.
  *
- * Timeline, Albums, People and Places are the same screen with different
- * questions asked of the server — so they share this rather than four copies
- * of selection, the viewer and the action bar. Only the toolbar's left-hand
- * slot and the source of `photos` differ.
+ * Timeline and Albums are the same screen with different questions asked of the
+ * server — so they share this rather than two copies of selection, the viewer
+ * and the action bar. Only the toolbar's left-hand slot, the source of `photos`,
+ * and whether the decision pipeline is wired in differ.
  *
  * Mutations are optimistic: a favourite flips and a deletion disappears before
  * the server confirms, then `onChanged` re-reads. Without that, every like
@@ -32,6 +49,7 @@ export function PhotoCollection({
   leading,
   showFilters = true,
   defaultCols = 6,
+  decisions,
 }: {
   photos: Photo[] | null
   loading: boolean
@@ -41,6 +59,7 @@ export function PhotoCollection({
   leading?: ReactNode
   showFilters?: boolean
   defaultCols?: number
+  decisions?: DecisionHooks
 }) {
   const { show } = useToast()
 
@@ -65,9 +84,17 @@ export function PhotoCollection({
   const [albumTargets, setAlbumTargets] = useState<PhotoId[]>([])
   const [albums, setAlbums] = useState<Album[] | null>(null)
   const [albumsLoading, setAlbumsLoading] = useState(false)
+  const [albumSuggestion, setAlbumSuggestion] = useState<string | null>(null)
   const [shareLink, setShareLink] = useState<string | null>(null)
   const [shareError, setShareError] = useState<string | null>(null)
   const [sharing, setSharing] = useState(false)
+
+  /** Kept separate from `visible`: scoring is asked of the whole loaded page,
+   *  not of whatever the current filter happens to be showing. */
+  const sourceIds = useMemo(
+    () => (photos ?? []).filter((p) => !removed.has(p.id)).map((p) => p.id),
+    [photos, removed],
+  )
 
   const visible = useMemo(() => {
     const base = (photos ?? []).filter((p) => !removed.has(p.id))
@@ -75,10 +102,22 @@ export function PhotoCollection({
       const patch = patched.get(p.id)
       return patch ? { ...p, ...patch } : p
     })
-    return applyFilter(patchedList, filter)
-  }, [photos, filter, patched, removed])
+    return applyFilter(patchedList, filter, decisions?.scores)
+  }, [photos, filter, patched, removed, decisions?.scores])
 
-  const groups = useMemo(() => groupPhotos(visible), [visible])
+  const dateGroups = useMemo(() => groupPhotos(visible), [visible])
+
+  /**
+   * Under the review filter the order is the score, not the date, so grouping by
+   * date is not just useless but actively wrong: it shatters the queue into one
+   * section per photo. A single unnamed group renders it as the flat grid it is.
+   * `dateGroups` is kept separately because the date rail is date navigation,
+   * and belongs to the date ordering rather than to whatever is on screen.
+   */
+  const groups = useMemo<Array<{ date: string | null; photos: Photo[] }>>(
+    () => (filter === 'review' ? [{ date: null, photos: visible }] : dateGroups),
+    [visible, filter, dateGroups],
+  )
   const allIds = useMemo(() => visible.map((p) => p.id), [visible])
 
   const reset = useCallback(() => {
@@ -187,17 +226,42 @@ export function PhotoCollection({
     }
   }
 
+  async function loadAlbums(): Promise<Album[]> {
+    if (albums) return albums
+    setAlbumsLoading(true)
+    try {
+      const list = await backend.albums()
+      setAlbums(list)
+      return list
+    } catch {
+      setAlbums([])
+      return []
+    } finally {
+      setAlbumsLoading(false)
+    }
+  }
+
   async function openAlbumPicker(ids: PhotoId[]) {
     setAlbumTargets(ids)
     setDialog('album')
-    if (albums) return
-    setAlbumsLoading(true)
+    setAlbumSuggestion(null)
+
+    const known = await loadAlbums()
+    if (!decisions || known.length === 0) return
+
     try {
-      setAlbums(await backend.albums())
+      // The picker files everything selected into one album, so the per-photo
+      // answers are reduced to the most common one. A suggestion is an offer:
+      // nothing is filed until the tap below, which is the whole reason this
+      // lives inside the dialog rather than in a background job.
+      const perPhoto = await decisions.suggestAlbum(ids, known.map((a) => a.name))
+      const tally = new Map<string, number>()
+      for (const name of perPhoto.values()) tally.set(name, (tally.get(name) ?? 0) + 1)
+      const best = [...tally.entries()].sort((a, b) => b[1] - a[1])[0]
+      setAlbumSuggestion(best?.[0] ?? null)
     } catch {
-      setAlbums([])
-    } finally {
-      setAlbumsLoading(false)
+      // A suggestion that cannot be produced is simply not shown.
+      setAlbumSuggestion(null)
     }
   }
 
@@ -290,22 +354,22 @@ export function PhotoCollection({
                 }}
               >
                 {FILTERS.map((c) => (
-                  <button
+                  <FilterChip
                     key={c.id}
+                    active={filter === c.id}
+                    label={c.label}
                     onClick={() => setFilter(c.id)}
-                    aria-pressed={filter === c.id}
-                    className="label-01"
-                    style={{
-                      padding: 'var(--spacing-01) var(--spacing-04)',
-                      borderRadius: 'var(--border-radius-full)',
-                      border: `1px solid ${filter === c.id ? 'var(--background-brand)' : 'var(--border-subtle-01)'}`,
-                      background: filter === c.id ? 'var(--background-brand)' : 'var(--layer-01)',
-                      color: filter === c.id ? 'var(--text-on-color)' : 'var(--text-primary)',
-                    }}
-                  >
-                    {c.label}
-                  </button>
+                  />
                 ))}
+                {decisions && decisions.scores.size > 0 && (
+                  <FilterChip
+                    active={filter === REVIEW_FILTER.id}
+                    label={REVIEW_FILTER.label}
+                    onClick={() =>
+                      setFilter(filter === REVIEW_FILTER.id ? 'all' : REVIEW_FILTER.id)
+                    }
+                  />
+                )}
               </div>
             )}
 
@@ -317,6 +381,16 @@ export function PhotoCollection({
                 gap: 'var(--spacing-03)',
               }}
             >
+              {decisions && (
+                <Button
+                  variant="invisible"
+                  size="small"
+                  disabled={decisions.scoring}
+                  onClick={() => decisions.onScore(sourceIds)}
+                >
+                  {decisions.scoring ? 'Scoring…' : 'Score'}
+                </Button>
+              )}
               {visible.length > 0 && (
                 <Button variant="invisible" size="small" onClick={() => setSelecting(true)}>
                   Select
@@ -357,29 +431,35 @@ export function PhotoCollection({
         <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', padding: '12px 50px 12px 20px' }}>
           {loading ? (
             <SkeletonGrid cols={gridCols} />
-          ) : groups.length === 0 ? (
+          ) : visible.length === 0 ? (
             <Blankslate>
               <Blankslate.Visual>
                 <Icon name="image" size={24} />
               </Blankslate.Visual>
-              <Blankslate.Description>{empty}</Blankslate.Description>
+              <Blankslate.Description>
+                {filter === 'review'
+                  ? 'Nothing scored yet. Press Score to build the review queue — weakest first, and it never deletes anything on its own.'
+                  : empty}
+              </Blankslate.Description>
             </Blankslate>
           ) : (
             groups.map((g) => (
-              <section key={g.date} id={groupAnchor(g.date)}>
-                <h2
-                  className="heading-compact-01"
-                  style={{
-                    color: 'var(--text-primary)',
-                    padding: 'var(--spacing-05) 0 var(--spacing-03)',
-                    position: 'sticky',
-                    top: 0,
-                    background: 'var(--background)',
-                    zIndex: 1,
-                  }}
-                >
-                  {g.date}
-                </h2>
+              <section key={g.date ?? 'review'} id={g.date ? groupAnchor(g.date) : undefined}>
+                {g.date && (
+                  <h2
+                    className="heading-compact-01"
+                    style={{
+                      color: 'var(--text-primary)',
+                      padding: 'var(--spacing-05) 0 var(--spacing-03)',
+                      position: 'sticky',
+                      top: 0,
+                      background: 'var(--background)',
+                      zIndex: 1,
+                    }}
+                  >
+                    {g.date}
+                  </h2>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: `repeat(${gridCols}, 1fr)`, gap: 2 }}>
                   {g.photos.map((p) => (
                     <PhotoTile
@@ -399,7 +479,7 @@ export function PhotoCollection({
           )}
         </div>
 
-        {groups.length > 1 && !loading && (
+        {filter !== 'review' && dateGroups.length > 1 && !loading && (
           <div
             style={{
               position: 'absolute',
@@ -414,7 +494,7 @@ export function PhotoCollection({
               zIndex: 3,
             }}
           >
-            {groups.map((g) => (
+            {dateGroups.map((g) => (
               <button
                 key={g.date}
                 onClick={() => document.getElementById(groupAnchor(g.date))?.scrollIntoView({ behavior: 'smooth' })}
@@ -455,6 +535,7 @@ export function PhotoCollection({
           albums={albums}
           loading={albumsLoading}
           count={albumTargets.length}
+          suggested={albumSuggestion}
           onPick={pickAlbum}
           onCancel={() => setDialog(null)}
         />
@@ -469,6 +550,33 @@ export function PhotoCollection({
         />
       )}
     </div>
+  )
+}
+
+function FilterChip({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className="label-01"
+      style={{
+        padding: 'var(--spacing-01) var(--spacing-04)',
+        borderRadius: 'var(--border-radius-full)',
+        border: `1px solid ${active ? 'var(--background-brand)' : 'var(--border-subtle-01)'}`,
+        background: active ? 'var(--background-brand)' : 'var(--layer-01)',
+        color: active ? 'var(--text-on-color)' : 'var(--text-primary)',
+      }}
+    >
+      {label}
+    </button>
   )
 }
 

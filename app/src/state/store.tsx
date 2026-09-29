@@ -69,6 +69,15 @@ interface Persisted {
   photoFolder: string
   fileFolder: string
   role: DeviceRole
+  /**
+   * Whether to offer the local caption-and-decide pipeline.
+   *
+   * Off by default, and off means nothing reaches the agent at all: the server
+   * does no background work, so the CPU cost of this being enabled is zero until
+   * the user opens a surface that asks for it. Immich's own ML container already
+   * covers semantic search, which is why this is a choice rather than a default.
+   */
+  decisionPipeline: boolean
 }
 
 const DEFAULTS: Persisted = {
@@ -79,6 +88,7 @@ const DEFAULTS: Persisted = {
   photoFolder: '~/Pictures/immich',
   fileFolder: '~/Nextcloud/espnas',
   role: 'client',
+  decisionPipeline: false,
 }
 
 /** Reads persisted settings, adopting only keys that still exist — so a field
@@ -106,6 +116,7 @@ function load(): Persisted {
       photoFolder: p.photoFolder ?? DEFAULTS.photoFolder,
       fileFolder: p.fileFolder ?? DEFAULTS.fileFolder,
       role: p.role ?? DEFAULTS.role,
+      decisionPipeline: p.decisionPipeline ?? DEFAULTS.decisionPipeline,
     }
   } catch {
     return DEFAULTS
@@ -136,6 +147,7 @@ export interface AppApi extends Persisted {
   setFileMode: (m: ModuleState) => void
   setPhotoFolder: (p: string) => void
   setFileFolder: (p: string) => void
+  setDecisionPipeline: (on: boolean) => void
   resetConnection: () => void
   backends: Backends
 }
@@ -255,6 +267,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setFileMode: (fileMode) => patch({ fileMode }),
       setPhotoFolder: (photoFolder) => patch({ photoFolder }),
       setFileFolder: (fileFolder) => patch({ fileFolder }),
+      setDecisionPipeline: (decisionPipeline) => patch({ decisionPipeline }),
       resetConnection: () => {
         patch({ connection: DEFAULTS.connection })
         setConnectionState('unconfigured')

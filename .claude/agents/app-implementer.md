@@ -11,21 +11,30 @@ The designs in `FileSync Frontend Designs.html` are the visual source of truth;
 
 ## Rules that are not obvious from the code
 
-**Never hardcode a colour.** Both themes must work. Use the custom properties in
-`styles/theme.css` — `--surf`, `--surf2`, `--surf3`, `--bd`, `--tx`, `--tx2`,
-`--txm`, `--txd`, `--acc`, `--accbg`, `--ok`, `--danger`, `--warn`, `--warnbg`,
-`--dangerbg`, `--skeleton`, `--shadow-*`. A literal hex is a bug.
+**Never hardcode a colour.** Both themes must work. Use the Carbon custom
+properties from `styles/tokens.css` — `--layer-01`/`-02`/`-03`, `--background`,
+`--field-01`, `--border-subtle-01`, `--text-primary`/`-secondary`/`-helper`,
+`--background-brand`, `--spacing-01`…`-07`, `--border-radius-*`. A literal hex is
+a bug, and so is a literal px font size. There are no app-specific aliases left:
+the old `--surf`/`--tx`/`--acc` bridge is deleted.
 
-**Never use an emoji as an icon.** `<Icon name="…" />` from `components/Icon.tsx`.
-New glyphs go in that file: 16×16 viewBox, `fill="none"`, `stroke="currentColor"`,
-stroke width 1.5. They inherit colour and work in both themes for free.
+**Reach for a Primer component before a style.** The whole UI is BuildNexus —
+Primer React restyled onto those tokens, so a stock component is already
+correct-looking and you do not restyle it. `Button`, `Stack`, `Heading`, `Text`,
+`Label`, `ToggleSwitch`, `SegmentedControl`, `Dialog`, `ActionList`, `NavList`,
+`FormControl`, `TextInput`, and `Card`/`Blankslate` from `@primer/react/experimental`.
+`Box` is not exported — use `Stack` or a plain `div`.
 
-**Reach for the shared primitives before inline styles**: `.btn`, `.btn--primary`,
-`.btn--sm`, `.btn--xs`, `.btn--link`, `.btn--danger`, `.card`, `.card__label`,
-`.group`, `.group__item`, `.group__item--action`, `.group__item--danger`,
-`.seg`, `.seg__opt`, `.input`, `.field-label`, `.hint`, `.statlist`, `.row`,
-`.badge-soon`, `.toast`. They live in `styles/base.css`. Anything used in three
-places belongs there rather than duplicated inline.
+`styles/base.css` is **not** a component stylesheet any more. `.btn`, `.card`,
+`.group`, `.seg` and the rest are gone; what remains is the reset, the selection
+rules and `.toast`. Adding a component class there means the Primer route was
+missed.
+
+**Never use an emoji as an icon.** `<Icon name="…" />` from `components/Icon.tsx`
+— a name-based facade over Carbon icons, so a new glyph usually means a new name
+in that map rather than new artwork. `carbonIcon('name')` returns the component
+itself, for APIs that take an icon rather than draw one. Carbon draws at
+16/20/24/32 and the design system says not to scale, so sizes snap.
 
 **Screens position themselves absolutely.** Each screen renders
 `<div style={{ position: 'absolute', inset: 0 }}>`. In `App.tsx` they sit inside

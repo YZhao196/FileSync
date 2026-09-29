@@ -19,9 +19,17 @@ curl -H "Authorization: Bearer $AGENT_TOKEN" http://localhost:8787/api/status
 | GET | `/api/status` | the `ServerStatus` shape in [`app/src/core/types.ts`](../../app/src/core/types.ts) |
 | POST | `/api/backup` | `202` — starts restic in the background |
 | POST | `/api/services/:name/restart` | `202` — restarts the container matching `:name` |
+| GET | `/api/decisions/status` | the `DecisionStatus` shape — see below |
+| POST | `/api/decisions/score` | `{ ids }` → `{ ok, scores, pending, failed }` |
+| POST | `/api/decisions/albums` | `{ ids, albums }` → `{ ok, suggestions }` |
+| POST | `/api/decisions/cache/clear` | `{ cleared }` |
 
 Auth is `Authorization: Bearer <AGENT_TOKEN>`. With no token set the API is open —
 that is for local development only, and the agent warns on startup.
+
+The four `/api/decisions` routes belong to the optional pipeline and answer
+`200 { ok: false, reason }` when it is unavailable, rather than failing. That is
+deliberate, and mirrors the collectors: the caller can say something specific.
 
 ## Configuration
 
@@ -34,6 +42,58 @@ that is for local development only, and the agent warns on startup.
 | `AGENT_SERVICES` | `immich,nextcloud,mariadb,redis` | Containers to report on |
 | `RESTIC_REPOSITORY` | `b2:espnas-backup:/` | Where backups go |
 | `AGENT_BACKUP_STATUS` | `/var/lib/filesynapse/last-backup` | The timer's own verdict file, if present |
+| `AGENT_OLLAMA_URL` | `http://ollama:11434` | Vision model. Unset disables the pipeline |
+| `AGENT_LAYLA_URL` | `http://layla:8080` | Decision model. Unset disables the scoring half |
+| `AGENT_IMMICH_URL` | — | **Must be set** for the pipeline; Immich is in the other stack |
+| `AGENT_IMMICH_API_KEY` | — | The app's all-scoped Immich key (for-human.md §6) |
+| `AGENT_VISION_MODEL` | `moondream` | Ollama model tag |
+| `AGENT_DECISION_BATCH` | `8` | Photos per request — a patience setting, not a limit |
+| `AGENT_CAPTION_PATH` | `/var/lib/filesynapse/decisions/captions.json` | Caption cache |
+
+## The decision pipeline (optional)
+
+Off unless configured. A photo is downloaded from Immich, described in one
+sentence by a vision model, and the description is answered by a small typed
+decision model — a `score` for the cull queue, a `choice` over the user's album
+names for routing.
+
+The app is the only thing that asks. There is **no scheduler and no watcher
+here**: nothing is captioned until a screen requests it, so an enabled pipeline
+that nobody is using costs nothing. The client drives the backlog by calling
+`score` repeatedly while `pending > 0`, which is why there is no job object and
+no endpoint to poll — a second source of truth for "what is left" is a thing to
+get out of sync.
+
+Captions are cached on disk; the decision model re-runs every time. The vision
+model is the slow, memory-hungry half and the 421M classifier is not, so caching
+the caption is the whole win. A change of `AGENT_VISION_MODEL` invalidates every
+entry rather than serving one model's text as another's.
+
+### Running the models
+
+```bash
+docker compose --profile decisions up -d
+docker compose exec ollama ollama pull moondream
+```
+
+`ollama` is behind a profile so a plain `docker compose up -d` does not pull
+gigabytes of model onto a machine that has to survive Immich indexing first.
+
+**Laya, the decision model, has no service here yet.** `UNVERIFIED:` its
+container story is unresolved — `pip install laya`, an ONNX build on `laya-sdk`,
+and a Jev-wire-compatible server are all documented, and none states a supported
+entrypoint. `docker-compose.yml` carries a comment naming the two candidates.
+Whatever it turns out to be, only `callLaya` in `decisions.mjs` has to change:
+the agent knows nothing else about it. Until then the cull queue still works
+from captions alone and the album suggestion simply does not appear.
+
+### Hardware honesty
+
+This box already runs Immich's own ML container. `moondream` adds roughly 2 GB
+of RSS while loaded and may push an 8 GB machine into swap, which is why
+captioning is **sequential** — one photo at a time, no parallelism knob — and
+why a whole-library scan is a day-scale batch rather than a button. Scoring is
+for the newest photos, not for everything.
 
 ## Design notes
 

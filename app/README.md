@@ -102,8 +102,17 @@ src/
 `FileBackend`, `ServerBackend`. Keep it thin; it exists so swapping a backend is
 a one-file change, not a rewrite.
 
-Two rules worth keeping:
+Three things that are load-bearing rather than incidental:
 
+- **`react-is` is a direct dependency pinned to the React 18 line, on purpose.**
+  `@primer/react` declares it as a *peer* with the range `18.x || 19.x`, so npm
+  installs the highest match — 19 — while this app runs React 18. Primer's
+  `Button` branches on `isElement` from that package to decide between rendering
+  a visual and calling it as a component, and react-is 19 looks for React 19's
+  element symbol. The result was that any plain element passed as a
+  `leadingVisual`/`trailingVisual` — the sidebar's `<kbd>Ctrl+K</kbd>` — was
+  treated as a component and took the whole app down. Do not remove it without
+  moving to React 19.
 - **`src/core/mock.ts` is a real, mutable backend**, not canned responses — and
   it is a development-only test double. Favouriting, deleting, renaming and
   creating a folder all change its state and persist for the session. That is

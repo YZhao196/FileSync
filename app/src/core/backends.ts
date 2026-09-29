@@ -11,7 +11,17 @@
  * the alternative to declaring it here was a button that lied.
  */
 
-import type { Album, FileEntry, Photo, PhotoId, ServerStatus, TreeNode } from './types'
+import type {
+  Album,
+  AlbumSuggestion,
+  DecisionStatus,
+  FileEntry,
+  Photo,
+  PhotoId,
+  ScoreResult,
+  ServerStatus,
+  TreeNode,
+} from './types'
 
 export interface PhotoBackend {
   /**
@@ -65,6 +75,18 @@ export interface ServerBackend {
   status(): Promise<ServerStatus>
   runBackup(): Promise<void>
   restartService(name: string): Promise<void>
+  /**
+   * The optional local decision pipeline, reached through the same agent rather
+   * than a service of its own — a fourth port would mean a fourth entry in
+   * `DEFAULT_PORTS`, a new Tauri capability and a new credential.
+   *
+   * Every method here is only called once the user has turned the pipeline on
+   * in Settings; with it off, nothing reaches the agent and no CPU is spent.
+   */
+  decisionStatus(): Promise<DecisionStatus>
+  scorePhotos(ids: PhotoId[]): Promise<ScoreResult>
+  suggestAlbums(ids: PhotoId[], albums: string[]): Promise<AlbumSuggestion[]>
+  clearCaptionCache(): Promise<number>
 }
 
 export interface Backends {

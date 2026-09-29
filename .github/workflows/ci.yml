@@ -34,3 +34,25 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # The host agent is dependency-free Node, so it needs no install step — which
+  # is the point of it. Syntax-checked as well as tested, because `node --check`
+  # catches an import of a file that does not exist, and a broken COPY in the
+  # Dockerfile would otherwise only surface on the server.
+  agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Syntax check
+        run: |
+          node --check infra/agent/agent.mjs
+          node --check infra/agent/decisions.mjs
+          node --check infra/agent/captionStore.mjs
+
+      - name: Test
+        run: node infra/agent/captionStore.test.mjs

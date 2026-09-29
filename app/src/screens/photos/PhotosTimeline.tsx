@@ -1,19 +1,22 @@
+import { useCallback, useMemo, useState } from 'react'
 import { Button } from '@primer/react'
 import { ChoiceScreen } from '../../components/ChoiceScreen'
 import { FolderPicker } from '../../components/FolderPicker'
 import { carbonIcon, Icon, IconBadge } from '../../components/Icon'
 import { useToast } from '../../components/Toaster'
+import type { PhotoId } from '../../core/types'
 import { useAsync } from '../../hooks/useAsync'
 import { FILE_MANAGER } from '../../lib/platform'
 import { revealInSystem } from '../../native/bridge'
 import { useApp } from '../../state/store'
-import { PhotoCollection } from './PhotoCollection'
+import { PhotoCollection, type DecisionHooks } from './PhotoCollection'
 
 /**
  * The photo timeline, and the two ways of handing the library to the OS.
  *
- * The grid itself lives in `PhotoCollection`, which Albums, People and Places
- * also use — this screen owns only the module's mode and the timeline's fetch.
+ * The grid itself lives in `PhotoCollection`, which Albums also uses — this
+ * screen owns only the module's mode, the timeline's fetch, and the optional
+ * decision pipeline, which the timeline is the only place to opt into.
  */
 export function PhotosTimeline() {
   const { photoMode, setPhotoMode, photoFolder, setPhotoFolder, isHost } = useApp()
@@ -146,8 +149,76 @@ function NativeFolder({
 }
 
 function Timeline({ onReset }: { onReset: () => void }) {
-  const { backends } = useApp()
+  const { backends, decisionPipeline } = useApp()
+  const { show } = useToast()
   const { data, loading, reload } = useAsync(() => backends.photos.list({ page: 1 }), [backends])
+
+  const [scores, setScores] = useState<Map<PhotoId, number>>(new Map())
+  const [scoring, setScoring] = useState(false)
+
+  /**
+   * Scores the photos it is handed, a batch at a time, until the queue drains.
+   *
+   * This loop *is* the work queue: there is no job object on the server and no
+   * endpoint to poll, because a second source of truth for "what is left" is a
+   * thing to get out of sync. Each call reports what it managed and what is
+   * still pending, and the loop continues while that number falls.
+   *
+   * It runs sequentially on the server's side too — see decisions.mjs — so this
+   * is minutes of work for a page, not seconds, and that is deliberate.
+   */
+  const score = useCallback(
+    async (ids: PhotoId[]) => {
+      if (ids.length === 0 || scoring) return
+      setScoring(true)
+      try {
+        let queue = [...ids]
+        while (queue.length > 0) {
+          const result = await backends.server.scorePhotos(queue)
+          if (!result.ok) {
+            show(result.reason ?? 'The server could not score these right now')
+            break
+          }
+          if (result.scores.length > 0) {
+            setScores((prev) => {
+              const next = new Map(prev)
+              for (const s of result.scores) next.set(s.id, s.score)
+              return next
+            })
+          }
+          const handled = result.scores.length + result.failed.length
+          // Nothing moved. Stopping beats re-asking the same ids for ever, which
+          // is what a server that rejects everything would otherwise cause.
+          if (handled === 0) break
+          queue = queue.slice(handled)
+        }
+      } catch (e) {
+        show(e instanceof Error ? `Scoring failed: ${e.message}` : 'Scoring failed')
+      } finally {
+        setScoring(false)
+      }
+    },
+    [backends, scoring, show],
+  )
+
+  const suggestAlbum = useCallback(
+    async (ids: PhotoId[], albums: string[]) => {
+      try {
+        const suggestions = await backends.server.suggestAlbums(ids, albums)
+        return new Map(suggestions.map((s) => [s.id, s.album]))
+      } catch {
+        return new Map<PhotoId, string>()
+      }
+    },
+    [backends],
+  )
+
+  // Absent when the pipeline is off, which is what makes the review chip and the
+  // Score button disappear with it rather than sitting there inert.
+  const decisions = useMemo<DecisionHooks | undefined>(
+    () => (decisionPipeline ? { scores, scoring, onScore: score, suggestAlbum } : undefined),
+    [decisionPipeline, scores, scoring, score, suggestAlbum],
+  )
 
   return (
     <PhotoCollection
@@ -156,6 +227,7 @@ function Timeline({ onReset }: { onReset: () => void }) {
       backend={backends.photos}
       onChanged={reload}
       empty="No photos yet. Uploads from your phone appear here."
+      decisions={decisions}
       leading={
         <Button variant="invisible" size="small" onClick={onReset} leadingVisual={carbonIcon('back')}>
           Change source

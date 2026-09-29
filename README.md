@@ -60,8 +60,9 @@ credentials and the login item.
 The client uses **BuildNexus** — Carbon v11 tokens, Primer React components, IBM
 Plex type, Carbon icons. The tokens and Primer stylesheet are vendored in
 `app/src/styles/`; IBM Plex is self-hosted so the app stays offline-capable.
-`app/src/styles/theme.css` is a temporary bridge from the app's original token
-names onto Carbon, and disappears as the last screen stops using them.
+Every screen builds from those Primer components, so there are no app token
+aliases left to learn — use the Carbon names (`--layer-01`, `--text-primary`)
+directly. `app/README.md` covers the four stylesheets and what each is for.
 
 ## Reading order, if you are new
 

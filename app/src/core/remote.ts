@@ -11,11 +11,14 @@ import { nativeFetch, type NativeResponse } from '../native/bridge'
 import type { Backends, FileBackend, PhotoBackend, ServerBackend } from './backends'
 import type {
   Album,
+  AlbumSuggestion,
   Connection,
   Credentials,
+  DecisionStatus,
   FileEntry,
   Photo,
   PhotoId,
+  ScoreResult,
   ServerStatus,
   TreeNode,
 } from './types'
@@ -389,6 +392,10 @@ class AgentServerBackend implements ServerBackend {
     return { authorization: `Bearer ${this.token}` }
   }
 
+  private get jsonHeaders(): HeadersInit {
+    return { ...this.headers, 'content-type': 'application/json' }
+  }
+
   async status(): Promise<ServerStatus> {
     const res = await req(`${this.baseUrl}/api/status`, { headers: this.headers })
     return (await res.json()) as ServerStatus
@@ -403,6 +410,48 @@ class AgentServerBackend implements ServerBackend {
       method: 'POST',
       headers: this.headers,
     })
+  }
+
+  /**
+   * UNVERIFIED: none of these four routes has ever been served by a deployed
+   * agent. They mirror the status routes above, which are themselves unverified
+   * against a real host (for-human.md §7).
+   *
+   * A modelled failure — Ollama down, the model never pulled — comes back as
+   * `200 {ok: false}`, matching the agent's convention that a panel saying
+   * "unavailable" beats a 500. Only a genuine bug raises `HttpError` here.
+   */
+  async decisionStatus(): Promise<DecisionStatus> {
+    const res = await req(`${this.baseUrl}/api/decisions/status`, { headers: this.headers })
+    return (await res.json()) as DecisionStatus
+  }
+
+  async scorePhotos(ids: PhotoId[]): Promise<ScoreResult> {
+    const res = await req(`${this.baseUrl}/api/decisions/score`, {
+      method: 'POST',
+      headers: this.jsonHeaders,
+      body: JSON.stringify({ ids }),
+    })
+    return (await res.json()) as ScoreResult
+  }
+
+  async suggestAlbums(ids: PhotoId[], albums: string[]): Promise<AlbumSuggestion[]> {
+    const res = await req(`${this.baseUrl}/api/decisions/albums`, {
+      method: 'POST',
+      headers: this.jsonHeaders,
+      body: JSON.stringify({ ids, albums }),
+    })
+    const body = (await res.json()) as { ok: boolean; suggestions?: AlbumSuggestion[] }
+    return body.suggestions ?? []
+  }
+
+  async clearCaptionCache(): Promise<number> {
+    const res = await req(`${this.baseUrl}/api/decisions/cache/clear`, {
+      method: 'POST',
+      headers: this.headers,
+    })
+    const body = (await res.json()) as { cleared?: number }
+    return body.cleared ?? 0
   }
 }
 

@@ -26,6 +26,20 @@ services:
       # exactly those to /etc/filesynapse/backup.env on the host; copy the three
       # values into this service's .env (or add `env_file:` pointing at it) and
       # the tile stops saying "unknown".
+
+      # ── Optional decision pipeline ──────────────────────────────────────────
+      # Unset these and the four /api/decisions routes report "unavailable"
+      # without contacting anything. Off by default: Immich's own ML container
+      # already does semantic search, so this is an opt-in, not a base feature.
+      AGENT_OLLAMA_URL: "${AGENT_OLLAMA_URL:-http://ollama:11434}"
+      AGENT_LAYLA_URL: "${AGENT_LAYLA_URL:-http://layla:8080}"
+      # Unlike the two above, Immich is in the *other* compose stack, so there is
+      # no service name this file can assume. Left empty on purpose — see
+      # .env.example for the two usual answers.
+      AGENT_IMMICH_URL: "${AGENT_IMMICH_URL:-}"
+      AGENT_IMMICH_API_KEY: "${AGENT_IMMICH_API_KEY:-}"
+      AGENT_VISION_MODEL: "${AGENT_VISION_MODEL:-moondream}"
+      AGENT_DECISION_BATCH: "${AGENT_DECISION_BATCH:-8}"
     volumes:
       # Container health and restarts
       - /var/run/docker.sock:/var/run/docker.sock
@@ -35,3 +49,53 @@ services:
       # The backup timer's verdict file. Without this mount the agent cannot see
       # it and falls back to inferring success from snapshot age — see README.md.
       - /var/lib/filesynapse:/var/lib/filesynapse:ro
+      # A narrower, writable mount on top of that read-only one. Nested mounts
+      # are applied deepest-first, so the agent can cache captions here while
+      # still being unable to write the backup verdict it reports on.
+      - /var/lib/filesynapse/decisions:/var/lib/filesynapse/decisions
+
+  # The vision model. Started only with `--profile decisions`, because pulling a
+  # multi-gigabyte model as a side effect of deploying a status agent would be a
+  # nasty surprise on a machine that has to survive Immich indexing first.
+  #
+  #   docker compose --profile decisions up -d
+  #   docker compose exec ollama ollama pull moondream
+  #
+  # Nothing in the app talks to this port; only the agent does, over the compose
+  # network. It is published so a human can pull models and poke at it.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["decisions"]
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    environment:
+      # Unload the model once nothing is asking. This box also runs Immich's own
+      # ML container, and a resident 1.8B model is roughly 2 GB it cannot spare.
+      OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:-5m}"
+    volumes:
+      - ollama-models:/root/.ollama
+
+  # ── Laya ────────────────────────────────────────────────────────────────────
+  # UNVERIFIED, and deliberately not defined. Laya is the open-weight decision
+  # model this pipeline was built for, but it is weeks old and none of its
+  # documented distribution routes (`pip install laya`, `laya-sdk` for ONNX, a
+  # Jev-wire-compatible server) states a supported container entrypoint.
+  #
+  # Two shapes are plausible, and which one works cannot be settled without
+  # running it:
+  #
+  #   1. A Python image running `pip install laya`, serving POST /decide.
+  #      Expected by the agent as { state, questions } -> { answers }.
+  #      Costs a multi-GB torch image on a machine already tight for RAM.
+  #   2. An ONNX image built on `laya-sdk`, exposing the same /decide contract.
+  #      Far smaller, but its Node bindings are unproven here.
+  #
+  # Whichever it turns out to be, only `callLaya` in decisions.mjs has to change:
+  # the agent knows nothing else about it. Until then the cull queue still works
+  # from captions alone and the album suggestion row simply does not render.
+  #
+  # See for-human.md and README.md.
+
+volumes:
+  ollama-models:

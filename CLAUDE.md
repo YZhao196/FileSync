@@ -49,7 +49,10 @@ is needed, not when an *action* is.
 
 ## Conventions the code depends on
 
-- **Theme tokens, never hex.** `styles/theme.css` — both themes must work.
+- **Theme tokens, never hex.** The Carbon names in `styles/tokens.css`
+  (`--layer-01`, `--text-primary`, `--spacing-05`); both themes must work. There
+  are no app-specific aliases any more — every screen builds from Primer, so
+  reach for a component before a custom property.
 - **`<Icon>`, never emoji.** 16×16, `currentColor`, in `components/Icon.tsx`.
 - **`go(screen, target)`, never a router.** Screens are a union in
   `state/store.tsx`; `NavTarget` carries the parameters. Deliberate.

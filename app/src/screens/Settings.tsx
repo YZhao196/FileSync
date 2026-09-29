@@ -3,6 +3,7 @@ import { Button, FormControl, Label, SegmentedControl, TextInput, ToggleSwitch }
 import { Icon } from '../components/Icon'
 import { useToast } from '../components/Toaster'
 import { testConnection } from '../core/client'
+import type { DecisionStatus } from '../core/types'
 import { useApp, type ModuleState, type ThemeChoice } from '../state/store'
 import { useAsync } from '../hooks/useAsync'
 import { clearCache, subscribeCache, cacheStats } from '../lib/thumbCache'
@@ -260,10 +261,15 @@ export function Settings() {
           </Row>
           <Row last block>
             <span className="helper-text-01" style={{ color: 'var(--text-helper)' }}>
-              This is the session cache. Nothing is kept on disk yet, so a restart starts cold and
-              the cache cannot speed up a first load — see for-human.md.
+              Kept on disk in the app's own storage, so replaying a library is fast
+              after a restart. The files live outside the libraries, and clearing
+              here reclaims the space without touching a single photo.
             </span>
           </Row>
+        </Group>
+
+        <Group title="Decision pipeline">
+          <DecisionPipeline />
         </Group>
 
         <Group title="Desktop">
@@ -357,6 +363,88 @@ function LaunchAtLogin() {
       />
     </Row>
   )
+}
+
+/**
+ * The optional local caption-and-decide pipeline, off until switched on here.
+ *
+ * Off means the agent is never asked for anything: there is no scheduler and no
+ * watcher on the server, so the cost of this feature being present but unused is
+ * zero. Immich's own ML container already does semantic search and face
+ * grouping, which is why this is a choice rather than an install-time default.
+ */
+function DecisionPipeline() {
+  const { decisionPipeline, setDecisionPipeline, backends } = useApp()
+  const { show } = useToast()
+  const [clearing, setClearing] = useState(false)
+
+  const { data: status, loading } = useAsync(
+    () => (decisionPipeline ? backends.server.decisionStatus() : Promise.resolve(null)),
+    [backends, decisionPipeline],
+  )
+
+  const clearCaptions = async () => {
+    setClearing(true)
+    try {
+      const cleared = await backends.server.clearCaptionCache()
+      show(cleared === 0 ? 'No captions to clear' : `Cleared ${cleared} captions`)
+    } catch {
+      show('Could not reach the server agent')
+    }
+    setClearing(false)
+  }
+
+  return (
+    <>
+      <Row last={!decisionPipeline}>
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-01)' }}>
+          <span id="decision-pipeline">Local decision pipeline</span>
+          <span className="helper-text-01" style={{ color: 'var(--text-helper)' }}>
+            Describes each photo on your server, then rates it, so the weakest are
+            easy to find before they fill your cloud backup.
+          </span>
+        </span>
+        <ToggleSwitch
+          aria-labelledby="decision-pipeline"
+          checked={decisionPipeline}
+          onChange={(checked) => setDecisionPipeline(checked)}
+        />
+      </Row>
+
+      {decisionPipeline && (
+        <>
+          <Row>
+            <span>Status</span>
+            <span style={{ color: 'var(--text-secondary)' }}>{pipelineStatus(status, loading)}</span>
+          </Row>
+          <Row interactive danger onClick={() => void clearCaptions()}>
+            <span>{clearing ? 'Clearing…' : 'Clear captions'}</span>
+          </Row>
+          <Row last block>
+            <span className="helper-text-01" style={{ color: 'var(--text-helper)' }}>
+              Scoring runs on the server, one photo at a time, only while a screen is
+              asking for it. It describes what is in the frame rather than judging
+              the photograph, so treat the queue as likely rejects to review — it
+              never deletes anything for you. See for-human.md.
+            </span>
+          </Row>
+        </>
+      )}
+    </>
+  )
+}
+
+/** The status line. Names the model rather than saying "the model", so a
+ *  missing one reads as a specific thing to install. */
+function pipelineStatus(status: DecisionStatus | null, loading: boolean): string {
+  if (loading) return 'Checking…'
+  if (!status) return 'Not reachable'
+  if (!status.available) return status.reason ?? 'Not available'
+  if (status.vision === 'model-missing') return `The ${status.model} model is not installed`
+  if (status.vision === 'unavailable') return 'The vision model is not running'
+  return status.captioned === 0
+    ? `${status.model} ready · no captions yet`
+    : `${status.model} ready · ${status.captioned} captioned`
 }
 
 /**

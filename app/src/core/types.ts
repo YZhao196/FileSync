@@ -156,3 +156,51 @@ export interface ProvisionEvent {
   state: 'start' | 'ok' | 'skipped' | 'failed'
   detail?: string
 }
+
+/* ── Decision pipeline ─────────────────────────────────────────────────── */
+
+/**
+ * The optional local caption-and-decide pipeline, served by the host agent.
+ *
+ * It is an option rather than a capability everything depends on, so it is off
+ * until the user turns it on: Immich's own ML container already covers semantic
+ * search, and a second model doing the same work on the same machine is the
+ * duplication the project cuts. See for-human.md.
+ */
+export type VisionState = 'ok' | 'model-missing' | 'unavailable'
+
+export interface DecisionStatus {
+  /** False when the agent has no Immich credentials, so it cannot fetch pixels. */
+  available: boolean
+  vision: VisionState
+  decision: 'ok' | 'unavailable'
+  /** The vision model in use, so the UI can name it rather than say "the model". */
+  model: string
+  /** Captions already on disk, so the cost of a re-run is visible. */
+  captioned: number
+  reason?: string
+}
+
+export interface PhotoScore {
+  id: PhotoId
+  /** 0..1; lower is weaker, so a cull queue orders ascending. */
+  score: number
+  caption: string
+}
+
+export interface ScoreResult {
+  /** False when the pipeline is unavailable at all — not a per-photo failure. */
+  ok: boolean
+  scores: PhotoScore[]
+  /** Requested ids still unscored after this call, excluding those in `failed`. */
+  pending: number
+  /** Per-photo failures. One slow image must not sink a whole batch. */
+  failed: Array<{ id: PhotoId; reason: string }>
+  reason?: string
+}
+
+export interface AlbumSuggestion {
+  id: PhotoId
+  album: string
+  confidence: number
+}

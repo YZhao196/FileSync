@@ -164,3 +164,52 @@ describe('mock photos', () => {
     expect(await backends.photos.search('   ')).toEqual([])
   })
 })
+
+describe('mock decision pipeline', () => {
+  it('orders scores the same way every time', async () => {
+    // Deterministic by construction. A random score would make the cull queue's
+    // ordering unassertable, which is the one thing it has to get right.
+    const ids = ['a1', 'b2', 'c3', 'd4', 'e5', 'f6']
+    const first = await backends.server.scorePhotos(ids)
+    const again = await backends.server.scorePhotos(ids)
+    expect(first.scores.map((s) => [s.id, s.score])).toEqual(again.scores.map((s) => [s.id, s.score]))
+  })
+
+  it('reports a failure per photo instead of failing the batch', async () => {
+    const ids = Array.from({ length: 200 }, (_, i) => `asset-${i}`)
+    const result = await backends.server.scorePhotos(ids)
+
+    expect(result.ok).toBe(true)
+    expect(result.failed.length).toBeGreaterThan(0)
+    // Every id is accounted for exactly once — the property a batch that
+    // "helpfully" drops a slow image would violate.
+    expect(result.scores.length + result.failed.length).toBe(ids.length)
+    expect(result.failed.every((f) => !result.scores.some((s) => s.id === f.id))).toBe(true)
+  })
+
+  it('keeps every score inside 0..1', async () => {
+    const result = await backends.server.scorePhotos(Array.from({ length: 50 }, (_, i) => `p-${i}`))
+    expect(result.scores.every((s) => s.score >= 0 && s.score <= 1)).toBe(true)
+  })
+
+  it('caches captions, and clearing both empties them and reports the count', async () => {
+    await backends.server.scorePhotos(Array.from({ length: 20 }, (_, i) => `c-${i}`))
+    const seeded = (await backends.server.decisionStatus()).captioned
+    expect(seeded).toBeGreaterThan(0)
+
+    expect(await backends.server.clearCaptionCache()).toBe(seeded)
+    expect((await backends.server.decisionStatus()).captioned).toBe(0)
+  })
+
+  it('suggests only albums it was given, and nothing when given none', async () => {
+    const albums = ['Summer', 'Work', 'Family']
+    const suggestions = await backends.server.suggestAlbums(['a', 'b', 'c'], albums)
+    expect(suggestions).toHaveLength(3)
+    for (const s of suggestions) {
+      expect(albums).toContain(s.album)
+      expect(s.confidence).toBeGreaterThanOrEqual(0.5)
+      expect(s.confidence).toBeLessThanOrEqual(1)
+    }
+    expect(await backends.server.suggestAlbums(['a'], [])).toEqual([])
+  })
+})

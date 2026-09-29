@@ -402,6 +402,15 @@ That panel is not an addition to the desktop app — it *is* the desktop app. Ev
 - **Server-side ML is free via API.** Face grouping, semantic search, video transcoding — all server-side, all exposed. Build none of it.
 - **Never resize on request.** Pre-generate thumbnails.
 
+The last rule is about *duplicating* what Immich already does, not about never
+running a model. An **optional decision pipeline** — a local vision model that
+captions a photo, and a small typed-decision model that scores it — is available
+behind a Settings toggle, off by default, served by the host agent rather than a
+service of its own. It is a genuine option rather than a duplicate because it
+does something Immich does not (rating for a cull queue, suggesting an album),
+and because it is off: nothing is scheduled, and an unused pipeline costs
+nothing. See `infra/agent/README.md` and for-human.md §8.
+
 ### "Set as server" — the install experience as a button
 
 **Designates the current PC as the server, with two selected folders assigned their roles** — a **photos folder** and a **cloud storage folder**. The app then provisions everything: Docker, the compose stack, both mounts, Tailscale, and the backup schedule. Nobody sees a terminal.
@@ -507,6 +516,15 @@ interface FileBackend {
 That's the whole thing. Writing it costs an hour; skipping it means a rewrite later. This is the single most valuable cheap decision in the section — it's the difference between swapping backends being a one-file change and being a new app.
 
 **Do not build more than this.** No plugin registry, no DI container, no provider discovery. If you write a third backend you'll refactor *then* — the point is only that the refactor stays contained.
+
+**The optional decision pipeline extends `ServerBackend`, and deliberately not
+`Backends`.** It is reached through the host agent that already exists, at the
+port the client already knows and the capability already allows, so it added no
+`DEFAULT_PORTS` entry, no Tauri permission and no credential. A fourth field on
+`Backends` would have implied a fourth service, which is the thing that was
+rejected: the fan-out is six client surfaces and an uninstall hook that deletes
+credentials by name. It is off unless the user asks for it, and off means the
+agent is never contacted.
 
 ---
 

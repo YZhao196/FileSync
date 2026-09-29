@@ -19,10 +19,14 @@
 import type { Backends, FileBackend, PhotoBackend, ServerBackend } from './backends'
 import type {
   Album,
+  AlbumSuggestion,
+  DecisionStatus,
   FileEntry,
   Gradient,
   Photo,
   PhotoId,
+  PhotoScore,
+  ScoreResult,
   ServerStatus,
   TreeNode,
 } from './types'
@@ -450,6 +454,13 @@ function humanBytes(n: number): string {
 /* ── Server ────────────────────────────────────────────────────────────── */
 
 class MockServerBackend implements ServerBackend {
+  /**
+   * Captions already "on disk". A real Map rather than a canned response, for
+   * the reason the top of this file gives: with a fixed one, clearing the cache
+   * and re-scoring would look identical, and the button would be untested.
+   */
+  private readonly captions = new Map<PhotoId, string>()
+
   async status(): Promise<ServerStatus> {
     await delay(220)
     return structuredClone(MOCK_SERVER_STATUS)
@@ -463,7 +474,82 @@ class MockServerBackend implements ServerBackend {
     await delay(900)
     void name
   }
+
+  async decisionStatus(): Promise<DecisionStatus> {
+    await delay(120)
+    return {
+      available: true,
+      vision: 'ok',
+      decision: 'ok',
+      model: 'moondream',
+      captioned: this.captions.size,
+    }
+  }
+
+  async scorePhotos(ids: PhotoId[]): Promise<ScoreResult> {
+    await delay(400)
+    const scores: PhotoScore[] = []
+    const failed: Array<{ id: PhotoId; reason: string }> = []
+
+    for (const id of ids) {
+      // Derived from the id rather than random, so the queue orders the same way
+      // on every reload and a test can assert it. Roughly one id in eleven
+      // fails, so the per-photo error path is reachable in a browser.
+      const h = hash(id)
+      if (h % 11 === 0) {
+        failed.push({ id, reason: 'the vision model timed out' })
+        continue
+      }
+      const caption = this.captions.get(id) ?? CAPTIONS[h % CAPTIONS.length]
+      this.captions.set(id, caption)
+      scores.push({ id, score: (h % 1000) / 1000, caption })
+    }
+
+    return { ok: true, scores, pending: 0, failed }
+  }
+
+  async suggestAlbums(ids: PhotoId[], albums: string[]): Promise<AlbumSuggestion[]> {
+    await delay(260)
+    if (!albums.length) return []
+    return ids.map((id) => {
+      const h = hash(id)
+      return { id, album: albums[h % albums.length], confidence: 0.5 + (h % 500) / 1000 }
+    })
+  }
+
+  async clearCaptionCache(): Promise<number> {
+    await delay(90)
+    const cleared = this.captions.size
+    this.captions.clear()
+    return cleared
+  }
 }
+
+/** FNV-1a, so the mock is deterministic. Real scores come from the model. */
+function hash(s: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return h >>> 0
+}
+
+/**
+ * Descriptions in the shape the vision model returns: what is in the frame, not
+ * how good a photograph it is. The cull queue's whole honesty problem is that
+ * those are different things, so the placeholder data should not paper over it.
+ */
+const CAPTIONS = [
+  'a blurry photo of a dog at night',
+  'a person holding a birthday cake in a dim room',
+  'a close-up of a plate of food on a wooden table',
+  'a wide shot of a beach at sunset',
+  'a screenshot of a computer screen showing text',
+  'a dark photo of a street with streetlights',
+  'two people standing in front of a building',
+  'an out-of-focus photo of a cat on a sofa',
+]
 
 export function createMockBackends(): Backends {
   return {

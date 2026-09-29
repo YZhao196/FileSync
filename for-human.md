@@ -5,7 +5,7 @@ see [What exists](#what-exists) at the bottom.
 
 The front end is complete and verified in a browser: every control acts on a
 real backend (the placeholder one, or live Immich/Nextcloud), including album
-contents, search, and every photo and file action. 84 unit tests pass, the
+contents, search, and every photo and file action. 98 unit tests pass, the
 typecheck is clean, and the production build succeeds.
 
 What follows is what a person still has to do, and what has never been run.
@@ -235,7 +235,58 @@ Photos. A 403 there is the §6 permission, not a code bug.
 
 ---
 
-## 8. Not built
+## 8. Turn on the decision pipeline (optional, off by default)
+
+**Why this needs you:** it installs two model containers, and it wants RAM this
+machine may not have.
+
+Everything here is optional and nothing runs until you switch it on in
+**Settings → Decision pipeline**. The server does no background work: it captions
+only when a screen asks, so an enabled pipeline nobody is using costs nothing.
+
+Once on, two things appear in the timeline. **Score** rates the photos it can
+see, and a **Needs review** chip lists them weakest first — the queue orders a
+human's review and never deletes anything. **Add to album** gains a **Suggested**
+row, which you still have to tap; nothing is ever filed automatically.
+
+```bash
+cd infra/agent
+docker compose --profile decisions up -d
+docker compose exec ollama ollama pull moondream
+```
+
+Then set `AGENT_IMMICH_URL` and `AGENT_IMMICH_API_KEY` in `.env` — the same
+all-scoped Immich key from §6. Immich lives in the other compose stack, so there
+is no service name this one can assume; see `.env.example` for the two usual
+answers.
+
+**Be honest about the hardware.** This is an 8 GB box already running Immich's own
+ML container. `moondream` adds roughly 2 GB of RAM while loaded and may push it
+into swap. Scoring is sequential on purpose — one photo at a time — and a whole
+library is a day-scale batch, not a button. Score the newest photos, not
+everything. The review chip ranks the newest 100, because the client still has no
+paging (§9).
+
+**What it will not do.** The caption is the vision model's description of what is
+in the frame, not a judgement of how good the photograph is. The scoring model can
+catch blur, darkness and framing; it cannot rank two good holiday photos. The
+queue is "likely rejects, weakest first".
+
+**`UNVERIFIED:` the scoring half has no confirmed home yet.** Laya, the
+open-weight decision model this was built for, is weeks old and none of its
+documented distribution routes states a supported container entrypoint.
+`infra/agent/docker-compose.yml` carries a comment naming the two candidates and
+`infra/agent/README.md` explains the seam. Until it is resolved the cull queue
+still works from captions alone and the album suggestion simply does not appear —
+which is why the vision half is not blocked on the unresolved half.
+
+**Cost when off:** zero. No port, no container, no request. The four
+`/api/decisions` routes answer `unavailable` and the app hides every surface that
+would need them.
+
+---
+
+## 9. Not built
 
 | Feature | Notes |
 |---|---|
@@ -250,6 +301,10 @@ Photos. A 403 there is the §6 permission, not a code bug.
 | **Multi-select download** | One file at a time. Several would mean several save dialogs, which is worse than saying no |
 | **PDF / office previews** | Images and text render inline; anything else gets its metadata and a Download button rather than a broken frame |
 | **QR pairing** | First Run mentions it as "later" |
+| **Automatic album filing** | The pipeline *suggests* an album inside the add-to-album dialog; it never files without a tap. Filing on its own needs a watcher, cannot be reviewed before it acts, and a mis-filed photo is silent corruption of your own organisation |
+| **Cull the whole library** | The review chip ranks the newest 100 photos, and scoring is sequential on the server. Incremental by design — see §8 |
+| **Caption freshness for edited photos** | Captions are keyed by Immich asset id and survive an in-place edit of the photo. "Clear captions" in Settings is the manual reset |
+| **The privacy gate** | The pipeline can score and route, but it does not gate what reaches the cloud backup |
 
 ---
 
@@ -266,7 +321,7 @@ designs were followed.
 3. **Photos is likewise a choice** — in-app viewer, or hand the folder to the OS.
 4. **Nothing physical moves when replacing a server** — recorded in PLAN.md §11.
 5. **People, Places and a map are not built** — removed on request, because
-   Immich's own UI already covers them. See §8.
+   Immich's own UI already covers them. See §9.
 6. **The photo identity is the server's own id**, a string, not a number. The
    first draft hashed Immich's UUID to an int, which made favouriting,
    downloading and deleting impossible — a hash cannot be turned back into an id.
@@ -278,13 +333,14 @@ designs were followed.
 | Thing | State |
 |---|---|
 | `app/` — React + TypeScript + Vite frontend | Built, typechecks strict, production build passes |
-| 84 unit tests | Passing across 6 files |
+| 98 unit tests | Passing across 7 files, plus 11 checks on the caption store |
 | All screens | First Run, Provision, Server, Photos (Timeline / Albums / album contents), Files, Settings, Replace server |
 | Photo actions | Favourite, share, add to album, download, delete — single and in bulk |
 | File actions | Preview, download, new folder, rename, delete |
 | Search | ⌘K / Ctrl+K over photos (server-side) and files (by name) |
 | Tauri shell | Built and launched; tray, autostart, notifications, keychain, CORS-free HTTP and the provisioning runner all wired. Interactive behaviour unconfirmed — see §2 |
 | A host agent | Written and its HTTP contract tested. Not deployed — see §3 |
+| An optional decision pipeline | Written and verified in a browser against the placeholder backend: the cull queue and the album suggestion both work, and both vanish when it is off. Never run against real models — see §8 |
 | A provisioning script | Written, `bash -n` clean, never executed — see §5 |
 | Live Immich / Nextcloud clients | Written, unverified — see §7 |
 
