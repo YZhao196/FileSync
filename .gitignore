@@ -21,6 +21,11 @@ infra/agent/*.test-state.json
 __pycache__/
 *.pyc
 
+# Vitest writes a timestamped copy of the config beside the real one when a run
+# is interrupted. Four of them had been committed before anyone noticed — their
+# contents embed an absolute path from whatever machine produced them.
+app/vitest.config.ts.timestamp-*.mjs
+
 # OS / editor
 .DS_Store
 Thumbs.db

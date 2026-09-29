@@ -34,8 +34,6 @@ function detect(): Platform {
 
 export const platform: Platform = detect()
 
-export const isMac = platform === 'macos'
-
 /** The platform's primary modifier, as printed on the keyboard. */
 export const modifierFor = (p: Platform): string => (p === 'macos' ? '⌘' : 'Ctrl')
 

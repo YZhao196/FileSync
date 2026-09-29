@@ -125,8 +125,6 @@ export interface Credentials {
   agentToken: string
 }
 
-export type BackendName = 'photos' | 'files' | 'agent'
-
 export interface TestResult {
   photos: ProbeResult
   files: ProbeResult
@@ -138,9 +136,6 @@ export interface TestResult {
 export type ProbeResult = 'ok' | 'unreachable' | 'auth-failed' | 'skipped'
 
 export type ConnectionState = 'unconfigured' | 'testing' | 'healthy' | 'unreachable' | 'auth-failed'
-
-/** Which surface renders a module: the app's own UI, or the OS. */
-export type ModuleMode = 'choose' | 'inapp' | 'native'
 
 /* ── Provisioning ───────────────────────────────────────────────────────── */
 

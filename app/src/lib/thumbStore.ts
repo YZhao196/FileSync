@@ -89,10 +89,6 @@ export function putThumb(key: string, blob: Blob): void {
   void run('readwrite', (s) => s.put({ key, blob, savedAt: Date.now() }) as IDBRequest<IDBValidKey>)
 }
 
-export function removeThumb(key: string): void {
-  void run('readwrite', (s) => s.delete(key) as IDBRequest<undefined>)
-}
-
 export async function clearThumbs(): Promise<void> {
   await run('readwrite', (s) => s.clear() as IDBRequest<undefined>)
 }
