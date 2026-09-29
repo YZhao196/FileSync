@@ -175,6 +175,17 @@ the app's progress list parses.
 
 Things to check on that first run, because nobody has:
 
+- **Immich is pointed at MariaDB, which it does not support.** `provision.sh`
+  writes one stack in which `immich-server` connects to the shared `mariadb:11`
+  as `DB_USERNAME: postgres` to a database `immich` that the script never
+  creates. Immich requires PostgreSQL — this is not a tuning problem, it is the
+  wrong database. PLAN.md §7 says to run Immich's own compose for the photo side;
+  the script hand-rolled one instead. **Immich will not start as written**, and
+  it needs fixing before the first run rather than discovered during it.
+- The same stack shares a single Redis between Immich and Nextcloud. Both use it,
+  for different things — Nextcloud for file locking, Immich for job queues — and
+  neither expects to share a keyspace. Two stacks give each its own.
+
 - The Compose stack actually starts and Immich and Nextcloud come up healthy.
   The script starts them and moves on; it does not wait for health.
 - `nextcloud:apache` with `- ${FILES_DIR}:/var/www/html/data` assumes the data
