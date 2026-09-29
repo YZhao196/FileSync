@@ -52,13 +52,16 @@ What follows is what a person still has to do, and what has never been run.
    `app/package.json`, `app/src-tauri/Cargo.toml`, `app/src-tauri/tauri.conf.json`.
    `Settings → About` reads the version from the running binary, so it cannot
    disagree with the one you shipped.
-5. **Approve the npm install scripts, once.** `@tauri-apps/cli` was added as a
-   dev dependency this session (it is what generates icons and runs
-   `tauri dev`). npm 11 flags an unapproved postinstall in its dependency tree:
+5. **npm install scripts are reviewed, and the decision is recorded** in
+   `app/package.json` under `allowScripts`, so a clean `npm ci` on a new machine
+   no longer prompts. `esbuild`'s postinstall is allowed because it places its
+   binary. Both Carbon packages are **denied** — their postinstall is
+   `ibmtelemetry`, IBM's install-time telemetry, which has nothing to do with
+   drawing an icon and would phone home from whoever runs `npm install`. If you
+   ever need to revisit it:
    ```bash
    cd app && npm approve-scripts --allow-scripts-pending
    ```
-   Everything works without it today; a clean `npm ci` on a new machine may not.
 
 ---
 
