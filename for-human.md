@@ -51,7 +51,10 @@ What follows is what a person still has to do, and what has never been run.
 4. **Set the version** in three places that must agree:
    `app/package.json`, `app/src-tauri/Cargo.toml`, `app/src-tauri/tauri.conf.json`.
    `Settings → About` reads the version from the running binary, so it cannot
-   disagree with the one you shipped.
+   disagree with the one you shipped — but the installer and the build read the
+   other two, so all three have to move together. That is now checked rather than
+   remembered: `cd app && npm run check-versions` fails with a table of which file
+   says what, and CI runs it on every push.
 5. **npm install scripts are reviewed, and the decision is recorded** in
    `app/package.json` under `allowScripts`, so a clean `npm ci` on a new machine
    no longer prompts. `esbuild`'s postinstall is allowed because it places its

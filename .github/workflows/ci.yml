@@ -29,6 +29,12 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # The version lives in three files and the installer, the build and
+      # Settings → About each read a different one. Bumping two of the three
+      # ships an app that confidently displays the wrong version.
+      - name: Versions agree
+        run: npm run check-versions
+
       - name: Test
         run: npm test
 

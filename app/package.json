@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check-versions": "node scripts/check-versions.mjs"
   },
   "dependencies": {
     "@carbon/icons-react": "^11.89.0",
