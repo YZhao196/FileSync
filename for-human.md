@@ -194,6 +194,21 @@ Things to check on that first run, because nobody has:
   previous version of this script did, and Immich cannot use it.
 - **`nextcloud-db` and `immich_postgres` are separate servers** with separate
   generated passwords. Nothing is shared between the two stacks.
+- **The nightly backup dumps both databases before it snapshots anything.** The
+  two folders are not the whole library — Immich's PostgreSQL holds the asset
+  index, albums, favourites and users, and Nextcloud's MariaDB holds accounts,
+  shares and versions. A snapshot of the folders alone would restore a pile of
+  files neither application knew about, and would still report success. If either
+  dump fails the whole run is marked failed, deliberately: no database, no
+  backup. What to verify on the first run is that a restore actually brings
+  Immich's albums back, not just the files.
+- **Retention is 7 daily snapshots** (`restic forget --keep-daily 7 --prune`),
+  as PLAN.md §9 chose. Worth revisiting: for a photo library, a corruption
+  noticed on day 8 has no good snapshot left. `--keep-weekly` would cost little
+  and cover that.
+- **The `sync` transfer route needs SSH from this machine to the old one**, and
+  nothing sets that up — rsync runs as `root@<old-server>`, so it wants a key or
+  a password prompt nobody will see. Set that up before choosing sync.
 
 - The Compose stack actually starts and Immich and Nextcloud come up healthy.
   The script starts them and moves on; it does not wait for health.

@@ -292,14 +292,63 @@ RESTIC_PASSWORD=$RESTIC_PASSWORD
 ENV
     chmod 600 /etc/filesynapse/backup.env
 
+    # ── The database dump ────────────────────────────────────────────────────
+    #
+    # The two folders are not the whole library. Immich's PostgreSQL holds the
+    # asset index, albums, favourites and users; Nextcloud's MariaDB holds
+    # accounts, shares and version history. Backing up only the folders restores
+    # a pile of files neither application knows anything about — and the run
+    # still reports success, which is the worst possible way to lose data.
+    #
+    # A logical dump rather than the data directory: copying a running database's
+    # files can capture a torn state that will not start again. The trailer each
+    # tool writes is checked, because a dump that stopped halfway is more
+    # dangerous than none — it looks restorable.
+    cat > /usr/local/bin/filesynapse-dump <<'DUMP'
+#!/usr/bin/env bash
+set -uo pipefail
+DUMP_DIR=/var/lib/filesynapse/dumps
+mkdir -p \"\$DUMP_DIR\"
+
+# Immich's PostgreSQL, all databases and roles.
+docker exec immich_postgres pg_dumpall --clean --if-exists -U postgres \\
+  > \"\$DUMP_DIR/immich.sql\" || exit 1
+grep -q 'PostgreSQL database dump complete' \"\$DUMP_DIR/immich.sql\" || exit 1
+
+# Nextcloud's MariaDB. --single-transaction keeps it consistent while running.
+# shellcheck disable=SC1091
+. /opt/filesynapse/nextcloud/.env
+docker exec nextcloud-db mariadb-dump --all-databases --single-transaction --quick \\
+  -uroot -p\"\$DB_PASSWORD\" > \"\$DUMP_DIR/nextcloud.sql\" || exit 1
+grep -q 'Dump completed' \"\$DUMP_DIR/nextcloud.sql\" || exit 1
+
+# The passwords sit in the dumps. They are read by root only.
+chmod 600 \"\$DUMP_DIR\"/*.sql
+DUMP
+    chmod 700 /usr/local/bin/filesynapse-dump
+
     cat > /usr/local/bin/filesynapse-backup <<'BACKUP'
 #!/usr/bin/env bash
 set -uo pipefail
 . /etc/filesynapse/backup.env
 STATUS=/var/lib/filesynapse/last-backup
 mkdir -p \"\$(dirname \"\$STATUS\")\"
+
+# No database, no backup. A snapshot of the folders alone would report ok while
+# restoring nothing usable, so the whole run fails instead — loudly, in the app,
+# where it will be noticed.
+if ! /usr/local/bin/filesynapse-dump; then
+  printf 'failed %s\\n' \"\$(date -Is)\" > \"\$STATUS\"
+  exit 1
+fi
+
 if restic snapshots >/dev/null 2>&1 || restic init; then
-  if restic backup '$PHOTOS_DIR' '$FILES_DIR' --exclude-caches; then
+  if restic backup '$PHOTOS_DIR' '$FILES_DIR' /var/lib/filesynapse/dumps --exclude-caches; then
+    # Retention, not just accumulation. PLAN.md §9 chose seven daily snapshots
+    # deliberately; without this the repository grows for ever and the retention
+    # the documentation describes does not exist. A prune failure leaves the
+    # snapshot in place, so it does not fail the run.
+    restic forget --keep-daily 7 --prune || true
     printf 'ok %s\\n' \"\$(date -Is)\" > \"\$STATUS\"
     exit 0
   fi
