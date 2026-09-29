@@ -25,8 +25,8 @@ What follows is what a person still has to do, and what has never been run.
    ```
 3. **The installer is built; signing is the outstanding part.**
    `npx tauri build` produces both Windows bundles:
-   - `app/src-tauri/target/release/bundle/msi/FileSynapse_0.1.0_x64_en-US.msi` — 7.3 MB
-   - `app/src-tauri/target/release/bundle/nsis/FileSynapse_0.1.0_x64-setup.exe` — 5.5 MB
+   - `app/src-tauri/target/release/bundle/msi/FileSynapse_0.1.0_x64_en-US.msi` — 8.1 MB
+   - `app/src-tauri/target/release/bundle/nsis/FileSynapse_0.1.0_x64-setup.exe` — 6.2 MB
 
    **What it does.** Per-user install with no administrator prompt, and a Start
    Menu entry — per-user deliberately, because the credentials live in the
@@ -78,8 +78,9 @@ icons exist, `cargo build` links with zero warnings, and `npx tauri dev` starts
 the window and stays up — which means the tray icon was created and no plugin
 failed to initialise.
 
-The **release** profile builds as well: `npx tauri build` completes in about
-14 minutes, and the packaged `filesynapse.exe` (16 MB) starts cleanly from
+The **release** profile builds as well: `npx tauri build` finishes in about two
+minutes when the Rust dependencies are already compiled, and fifteen from cold.
+The packaged `filesynapse.exe` (16 MB) starts cleanly from
 `app/src-tauri/target/release/` with nothing written to stdout or stderr. That
 is what confirms it is a working desktop application rather than a web page in a
 frame — but it is a *startup* check, not an interactive one.
