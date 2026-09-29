@@ -59,7 +59,7 @@ export type IconName =
   | 'back'
   | 'add'
 
-type CarbonIcon = typeof Search
+export type CarbonIcon = typeof Search
 
 /** `filled` picks the solid variant where Carbon ships one. */
 const ICONS: Record<IconName, { outline: CarbonIcon; filled?: CarbonIcon }> = {
@@ -95,6 +95,15 @@ function snap(size: number): CarbonSize {
       Math.abs(candidate - size) < Math.abs(best - size) ? candidate : best,
     16 as CarbonSize,
   )
+}
+
+/**
+ * The Carbon component behind a name, for the places that take an icon rather
+ * than draw one — Primer's `Card.Icon`, a Button's `leadingVisual`.
+ */
+export function carbonIcon(name: IconName, filled = false): CarbonIcon {
+  const entry = ICONS[name]
+  return (filled && entry.filled) || entry.outline
 }
 
 export function Icon({

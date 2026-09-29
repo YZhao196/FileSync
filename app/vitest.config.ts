@@ -12,5 +12,14 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],
     restoreMocks: true,
+    server: {
+      deps: {
+        // Primer React imports its own .css. Vitest externalises node_modules
+        // by default, which hands those imports to Node's ESM loader — and it
+        // cannot open a .css file. Inlining lets Vite's pipeline handle them,
+        // which is what any test importing a component that uses Primer needs.
+        inline: ['@primer/react', '@primer/primitives', '@carbon/icons-react'],
+      },
+    },
   },
 })

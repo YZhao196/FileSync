@@ -1,90 +1,82 @@
-import type { ReactNode } from 'react'
-import { IconBadge, type IconName } from './Icon'
+import { Button, Stack } from '@primer/react'
+import { Card } from '@primer/react/experimental'
+import { carbonIcon, type IconName } from './Icon'
 
 export interface Choice {
   icon: IconName
   title: string
   body: string
-  actionLabel: ReactNode
+  actionLabel: React.ReactNode
   onAction: () => void
   primary?: boolean
-  footnote?: ReactNode
+  footnote?: React.ReactNode
 }
 
 /**
  * The two-card "OR" layout used wherever a module asks where its content
  * should live: the app's own UI, or the OS. Shared by Photos and Files.
+ *
+ * BuildNexus `Card`, laid out as a grid of equal widths. Only one of the two
+ * actions is `primary` — the design system allows one primary button per view.
  */
 export function ChoiceScreen({ choices }: { choices: [Choice, Choice] }) {
   return (
-    <div
+    <Stack
+      direction="horizontal"
+      align="center"
+      justify="center"
+      gap="none"
       style={{
         position: 'absolute',
         inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--surf2)',
+        background: 'var(--background)',
         overflow: 'auto',
-        padding: 40,
-        gap: 0,
+        padding: 'var(--spacing-08)',
       }}
     >
-      <Card {...choices[0]} />
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 6,
-          padding: '0 20px',
-        }}
-      >
-        <div style={{ width: 1, height: 64, background: 'var(--bd)' }} />
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: 'var(--txd)',
-            background: 'var(--surf2)',
-            padding: '3px 7px',
-          }}
-        >
-          OR
-        </span>
-        <div style={{ width: 1, height: 64, background: 'var(--bd)' }} />
+      {/* Cards flex rather than holding a fixed width: at a narrow window two
+          320px cards overflow, and Primer's Card collapses its inner grid when
+          squeezed, which puts the action above the text. */}
+      <div style={{ flex: '1 1 0', minWidth: 0, maxWidth: 340 }}>
+        <ChoiceCard {...choices[0]} />
       </div>
-      <Card {...choices[1]} />
-    </div>
+      <OrDivider />
+      <div style={{ flex: '1 1 0', minWidth: 0, maxWidth: 340 }}>
+        <ChoiceCard {...choices[1]} />
+      </div>
+    </Stack>
   )
 }
 
-function Card({ icon, title, body, actionLabel, onAction, primary, footnote }: Choice) {
+function OrDivider() {
   return (
-    <div
-      style={{
-        width: 290,
-        background: 'var(--surf)',
-        borderRadius: 12,
-        border: '1px solid var(--bd)',
-        padding: 26,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 14,
-        boxShadow: 'var(--shadow-raised)',
-      }}
-    >
-      <IconBadge name={icon} size={24} />
-      <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--tx)', lineHeight: 1.35 }}>{title}</div>
-      <div style={{ fontSize: 13, color: 'var(--tx2)', lineHeight: 1.55 }}>{body}</div>
-      <button
-        className={primary ? 'btn btn--primary' : 'btn'}
-        onClick={onAction}
-        style={{ alignSelf: 'flex-start' }}
+    <Stack direction="vertical" align="center" gap="condensed" style={{ padding: '0 var(--spacing-05)' }}>
+      <div style={{ width: 1, height: 64, background: 'var(--border-subtle-01)' }} />
+      <span
+        className="label-01"
+        style={{ color: 'var(--text-helper)', background: 'var(--background)', padding: '3px 7px' }}
       >
-        {actionLabel}
-      </button>
-      {footnote}
+        OR
+      </span>
+      <div style={{ width: 1, height: 64, background: 'var(--border-subtle-01)' }} />
+    </Stack>
+  )
+}
+
+function ChoiceCard({ icon, title, body, actionLabel, onAction, primary, footnote }: Choice) {
+  return (
+    <div>
+      <Card padding="normal" borderRadius="large">
+        <Card.Icon icon={carbonIcon(icon)} />
+        <Card.Heading as="h2">{title}</Card.Heading>
+        <Card.Description>{body}</Card.Description>
+        <Card.Action>
+          <Button variant={primary ? 'primary' : 'default'} onClick={onAction}>
+            {actionLabel}
+          </Button>
+        </Card.Action>
+        {footnote}
+      </Card>
     </div>
   )
 }
