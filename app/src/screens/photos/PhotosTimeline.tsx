@@ -1,6 +1,7 @@
+import { Button } from '@primer/react'
 import { ChoiceScreen } from '../../components/ChoiceScreen'
 import { FolderPicker } from '../../components/FolderPicker'
-import { Icon, IconBadge } from '../../components/Icon'
+import { carbonIcon, Icon, IconBadge } from '../../components/Icon'
 import { useToast } from '../../components/Toaster'
 import { useAsync } from '../../hooks/useAsync'
 import { FILE_MANAGER } from '../../lib/platform'
@@ -88,57 +89,56 @@ function NativeFolder({
   const { isHost } = useApp()
 
   return (
-    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surf2)' }}>
+    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)' }}>
       <div
         style={{
           width: 380,
-          background: 'var(--surf)',
-          border: '1px solid var(--bd)',
-          borderRadius: 12,
-          padding: 26,
+          background: 'var(--layer-01)',
+          border: '1px solid var(--border-subtle-01)',
+          borderRadius: 'var(--border-radius-large)',
+          padding: 'var(--spacing-06)',
           display: 'flex',
           flexDirection: 'column',
-          gap: 14,
-          boxShadow: 'var(--shadow-raised)',
+          gap: 'var(--spacing-04)',
         }}
       >
         <IconBadge name="folder" size={26} />
-        <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--tx)' }}>
+        <div className="heading-compact-02" style={{ color: 'var(--text-primary)' }}>
           Photos open in your system viewer
         </div>
-        <div style={{ fontSize: 13, color: 'var(--tx2)', lineHeight: 1.55 }}>
+        <div className="body-01" style={{ color: 'var(--text-secondary)' }}>
           {`Nothing is browsed in-app. The folder below is handed to ${FILE_MANAGER}.`}
         </div>
         <code
+          className="code-01"
           style={{
-            fontSize: 12,
-            color: 'var(--tx2)',
-            background: 'var(--surf2)',
-            padding: '6px 10px',
-            borderRadius: 6,
+            color: 'var(--text-secondary)',
+            background: 'var(--layer-02)',
+            padding: 'var(--spacing-02) var(--spacing-03)',
+            borderRadius: 'var(--border-radius-medium)',
           }}
         >
           {path}
         </code>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button
-            className="btn btn--primary"
+        <div style={{ display: 'flex', gap: 'var(--spacing-03)', flexWrap: 'wrap' }}>
+          <Button
+            variant="primary"
+            trailingVisual={carbonIcon('external')}
             onClick={async () => {
               const ok = await revealInSystem(path)
               if (!ok) show('Opening a folder needs the desktop shell — see for-human.md')
             }}
           >
             {`Open in ${FILE_MANAGER}`}
-            <Icon name="external" size={12} />
-          </button>
+          </Button>
           {isHost && (
-            <button className="btn" onClick={onChange}>
+            <Button variant="default" onClick={onChange}>
               Change location
-            </button>
+            </Button>
           )}
-          <button className="btn" onClick={onReset}>
+          <Button variant="default" onClick={onReset}>
             Use in-app viewer
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -157,9 +157,9 @@ function Timeline({ onReset }: { onReset: () => void }) {
       onChanged={reload}
       empty="No photos yet. Uploads from your phone appear here."
       leading={
-        <button className="btn--link" onClick={onReset} style={{ fontSize: 12 }}>
-          ← Change source
-        </button>
+        <Button variant="invisible" size="small" onClick={onReset} leadingVisual={carbonIcon('back')}>
+          Change source
+        </Button>
       }
     />
   )

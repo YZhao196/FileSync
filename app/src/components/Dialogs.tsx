@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { ActionList, Button, ConfirmationDialog, Dialog, FormControl, TextInput } from '@primer/react'
 import type { Album } from '../core/types'
-import { Icon } from './Icon'
 
 /**
  * The small set of modal surfaces the app needs.
@@ -9,73 +9,30 @@ import { Icon } from './Icon'
  * show a share link. They share one frame rather than one per screen, because
  * two screens already need all four and a third copy of "overlay + card" is
  * where a UI starts drifting.
+ *
+ * The frame is BuildNexus `Dialog`, which brings the scrim, the focus trap, the
+ * Escape handling and the close button the hand-rolled card carried itself.
  */
 
 export function Modal({
   title,
   onClose,
   children,
-  labelledBy = 'modal-title',
 }: {
   title: string
   onClose: () => void
   children: ReactNode
+  /**
+   * Kept so existing callers keep compiling. `Dialog` names itself from `title`
+   * — it points `aria-labelledby` at the title element it renders — so no
+   * caller-supplied id is needed any more.
+   */
   labelledBy?: string
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(9,9,12,0.45)',
-        zIndex: 120,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-        animation: 'fadeInFast 120ms ease',
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={labelledBy}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: 400,
-          maxWidth: '100%',
-          maxHeight: '80vh',
-          overflowY: 'auto',
-          background: 'var(--surf)',
-          border: '1px solid var(--bd)',
-          borderRadius: 12,
-          padding: 22,
-          boxShadow: 'var(--shadow-raised)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 14,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <h2 id={labelledBy} style={{ fontSize: 15, fontWeight: 600, color: 'var(--tx)', flex: 1 }}>
-            {title}
-          </h2>
-          <button className="btn--link" onClick={onClose} aria-label="Close">
-            <Icon name="close" size={14} />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
+    <Dialog title={title} width={400} onClose={() => onClose()}>
+      {children}
+    </Dialog>
   )
 }
 
@@ -95,21 +52,18 @@ export function ConfirmDialog({
   onCancel: () => void
 }) {
   return (
-    <Modal title={title} onClose={onCancel}>
-      <div style={{ fontSize: 13, color: 'var(--tx2)', lineHeight: 1.55 }}>{body}</div>
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <button className="btn" onClick={onCancel}>
-          Cancel
-        </button>
-        <button
-          className={danger ? 'btn btn--danger' : 'btn btn--primary'}
-          onClick={onConfirm}
-          autoFocus
-        >
-          {confirmLabel}
-        </button>
-      </div>
-    </Modal>
+    <ConfirmationDialog
+      title={title}
+      width={400}
+      // `ConfirmationDialog` reports the gesture; only "confirm" is the
+      // destructive act, every other gesture (cancel, escape, close) cancels.
+      onClose={(gesture) => (gesture === 'confirm' ? onConfirm() : onCancel())}
+      confirmButtonContent={confirmLabel}
+      cancelButtonContent="Cancel"
+      confirmButtonType={danger ? 'danger' : 'primary'}
+    >
+      {body}
+    </ConfirmationDialog>
   )
 }
 
@@ -144,36 +98,30 @@ export function PromptDialog({
   }
 
   return (
-    <Modal title={title} onClose={onCancel}>
-      <div>
-        <label className="field-label" htmlFor="prompt-input" style={{ display: 'block', marginBottom: 6 }}>
-          {label}
-        </label>
-        <input
-          id="prompt-input"
+    <Dialog
+      title={title}
+      width={400}
+      onClose={() => onCancel()}
+      initialFocusRef={inputRef}
+      footerButtons={[
+        { content: 'Cancel', onClick: onCancel },
+        { content: submitLabel, buttonType: 'primary', onClick: submit, disabled: !value.trim() },
+      ]}
+    >
+      <FormControl>
+        <FormControl.Label>{label}</FormControl.Label>
+        <TextInput
           ref={inputRef}
-          className="input"
+          block
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') submit()
           }}
         />
-        {hint && (
-          <div className="hint" style={{ marginTop: 6 }}>
-            {hint}
-          </div>
-        )}
-      </div>
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <button className="btn" onClick={onCancel}>
-          Cancel
-        </button>
-        <button className="btn btn--primary" onClick={submit} disabled={!value.trim()}>
-          {submitLabel}
-        </button>
-      </div>
-    </Modal>
+        {hint && <FormControl.Caption>{hint}</FormControl.Caption>}
+      </FormControl>
+    </Dialog>
   )
 }
 
@@ -193,40 +141,33 @@ export function AlbumPicker({
   return (
     <Modal title={`Add ${count} item${count === 1 ? '' : 's'} to an album`} onClose={onCancel}>
       {loading ? (
-        <div style={{ fontSize: 13, color: 'var(--txm)' }}>Loading albums…</div>
+        <p className="body-01" style={{ color: 'var(--text-helper)' }}>
+          Loading albums…
+        </p>
       ) : !albums?.length ? (
-        <div style={{ fontSize: 13, color: 'var(--txm)' }}>No albums on the server yet.</div>
+        <p className="body-01" style={{ color: 'var(--text-helper)' }}>
+          No albums on the server yet.
+        </p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 300, overflowY: 'auto' }}>
+        <ActionList>
           {albums.map((a) => (
-            <button
-              key={a.id}
-              className="hoverable"
-              onClick={() => onPick(a)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '8px 10px',
-                borderRadius: 6,
-                textAlign: 'left',
-              }}
-            >
-              <span
-                aria-hidden="true"
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 5,
-                  flexShrink: 0,
-                  background: `linear-gradient(145deg, ${a.gradient[0]}, ${a.gradient[1]})`,
-                }}
-              />
-              <span style={{ flex: 1, fontSize: 13, color: 'var(--tx)' }}>{a.name}</span>
-              <span style={{ fontSize: 12, color: 'var(--txm)' }}>{a.count}</span>
-            </button>
+            <ActionList.Item key={a.id} onSelect={() => onPick(a)}>
+              <ActionList.LeadingVisual>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 'var(--border-radius-small)',
+                    background: `linear-gradient(145deg, ${a.gradient[0]}, ${a.gradient[1]})`,
+                  }}
+                />
+              </ActionList.LeadingVisual>
+              {a.name}
+              <ActionList.TrailingVisual>{a.count}</ActionList.TrailingVisual>
+            </ActionList.Item>
           ))}
-        </div>
+        </ActionList>
       )}
     </Modal>
   )
@@ -259,30 +200,33 @@ export function ShareDialog({
   return (
     <Modal title="Share link" onClose={onClose}>
       {loading ? (
-        <div style={{ fontSize: 13, color: 'var(--txm)' }}>Asking the server for a link…</div>
+        <p className="body-01" style={{ color: 'var(--text-helper)' }}>
+          Asking the server for a link…
+        </p>
       ) : error ? (
-        <div style={{ fontSize: 13, color: 'var(--danger)', lineHeight: 1.55 }}>{error}</div>
+        <p className="body-01" style={{ color: 'var(--text-error)' }}>
+          {error}
+        </p>
       ) : (
         <>
           <code
+            className="code-01"
             style={{
-              fontSize: 12,
-              color: 'var(--tx2)',
-              background: 'var(--surf2)',
-              padding: '8px 10px',
-              borderRadius: 6,
+              display: 'block',
+              color: 'var(--text-secondary)',
+              background: 'var(--layer-01)',
+              padding: 'var(--spacing-03) var(--spacing-04)',
+              borderRadius: 'var(--border-radius-medium)',
               wordBreak: 'break-all',
             }}
           >
             {link}
           </code>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button className="btn" onClick={onClose}>
-              Close
-            </button>
-            <button className="btn btn--primary" onClick={copy}>
+          <div style={{ display: 'flex', gap: 'var(--spacing-03)', justifyContent: 'flex-end' }}>
+            <Button onClick={onClose}>Close</Button>
+            <Button variant="primary" onClick={copy}>
               {copied ? 'Copied' : 'Copy link'}
-            </button>
+            </Button>
           </div>
         </>
       )}

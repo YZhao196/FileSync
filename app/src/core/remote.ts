@@ -56,6 +56,16 @@ class ImmichPhotoBackend implements PhotoBackend {
     private readonly apiKey: string,
   ) {}
 
+  /**
+   * Asset ids are per-server, so the cache is keyed by where they came from.
+   *
+   * A getter rather than a field: field initialisers run before constructor
+   * parameter properties are assigned, so a field would read `undefined`.
+   */
+  get cacheScope(): string {
+    return this.baseUrl
+  }
+
   private get headers(): HeadersInit {
     return { 'x-api-key': this.apiKey, 'content-type': 'application/json' }
   }

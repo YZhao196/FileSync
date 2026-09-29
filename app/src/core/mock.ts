@@ -212,6 +212,9 @@ function placeholderImage(photo: Photo): Blob {
 /* ── Photos ────────────────────────────────────────────────────────────── */
 
 class MockPhotoBackend implements PhotoBackend {
+  /** Its own scope, so a mock cache never collides with a real server's. */
+  readonly cacheScope = 'mock'
+
   async list(): Promise<Photo[]> {
     await delay()
     return store.photos.map((p) => ({ ...p }))

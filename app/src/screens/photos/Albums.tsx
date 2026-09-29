@@ -1,3 +1,5 @@
+import { Blankslate } from '@primer/react/experimental'
+import { Icon } from '../../components/Icon'
 import { useAsync } from '../../hooks/useAsync'
 import { useApp } from '../../state/store'
 
@@ -12,38 +14,70 @@ export function Albums() {
   if (error) {
     return (
       <Centered>
-        <span style={{ color: 'var(--danger)' }}>{error}</span>
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 'var(--spacing-02)',
+            color: 'var(--text-error)',
+          }}
+        >
+          <Icon name="alert" size={16} filled />
+          {error}
+        </span>
       </Centered>
     )
   }
 
   if (!albums?.length) {
-    return <Centered>No albums yet. Create one in Immich and it appears here.</Centered>
+    return (
+      <Centered>
+        <Blankslate>
+          <Blankslate.Visual>
+            <Icon name="folder-list" size={24} />
+          </Blankslate.Visual>
+          <Blankslate.Heading>No albums yet</Blankslate.Heading>
+          <Blankslate.Description>Create one in Immich and it appears here.</Blankslate.Description>
+        </Blankslate>
+      </Centered>
+    )
   }
 
   return (
-    <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', padding: 24 }}>
-      <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--tx)', marginBottom: 20 }}>Albums</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+    <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', padding: 'var(--spacing-06)' }}>
+      <h1 className="heading-04" style={{ color: 'var(--text-primary)', marginBottom: 'var(--spacing-05)' }}>
+        Albums
+      </h1>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--spacing-05)' }}>
         {albums.map((album) => (
           <button
             key={album.id}
             className="albumcard"
             onClick={() => go('album', { albumId: album.id, albumName: album.name })}
-            style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 8 }}
+            style={{
+              textAlign: 'left',
+              cursor: 'pointer',
+              padding: 'var(--spacing-03)',
+              background: 'var(--layer-01)',
+              border: '1px solid var(--border-subtle-01)',
+              borderRadius: 'var(--border-radius-medium)',
+            }}
           >
             <div
               aria-hidden="true"
               style={{
                 height: 140,
-                borderRadius: 8,
+                borderRadius: 'var(--border-radius-medium)',
                 background: `linear-gradient(145deg, ${album.gradient[0]}, ${album.gradient[1]})`,
               }}
             />
-            <div style={{ padding: '8px 0 2px', fontSize: 13, fontWeight: 600, color: 'var(--tx)' }}>
+            <div
+              className="heading-compact-01"
+              style={{ marginTop: 'var(--spacing-03)', color: 'var(--text-primary)' }}
+            >
               {album.name}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--txm)' }}>
+            <div className="label-01" style={{ color: 'var(--text-secondary)' }}>
               {album.count} item{album.count === 1 ? '' : 's'}
             </div>
           </button>
@@ -56,14 +90,15 @@ export function Albums() {
 function Centered({ children }: { children: React.ReactNode }) {
   return (
     <div
+      className="body-compact-01"
       style={{
         position: 'absolute',
         inset: 0,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: 'var(--txm)',
-        fontSize: 13,
+        color: 'var(--text-helper)',
+        padding: 'var(--spacing-06)',
       }}
     >
       {children}

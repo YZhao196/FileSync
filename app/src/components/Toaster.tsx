@@ -29,17 +29,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div
         style={{
           position: 'fixed',
-          bottom: 20,
+          bottom: 'var(--spacing-06)',
           left: '50%',
           transform: 'translateX(-50%)',
           display: 'flex',
           flexDirection: 'column',
-          gap: 8,
+          gap: 'var(--spacing-03)',
           alignItems: 'center',
           zIndex: 200,
           pointerEvents: 'none',
         }}
       >
+        {/* A transient toast is not an inline message, so it stays a plain
+            inverse-surface chip rather than a Primer `Flash`. The `.toast`
+            class already paints `background-inverse`/`text-inverse`. */}
         {toasts.map((t) => (
           <div key={t.id} className="toast" role="status">
             {t.message}

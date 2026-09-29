@@ -2,17 +2,20 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { PhotoBackend } from '../core/backends'
 import type { PhotoId } from '../core/types'
 import { cacheGeneration, noteThumb, releaseUrl, subscribeCache, trackUrl } from '../lib/thumbCache'
+import { cacheKey, getThumb, putThumb } from '../lib/thumbStore'
 
 /**
  * Loads a photo thumbnail and hands back an object URL.
  *
- * The indirection exists because Immich's thumbnails need an `x-api-key`
- * header, which an `<img src>` cannot send. Fetched bytes are turned into an
- * object URL and revoked on unmount, so a long scroll does not leak.
+ * Cache-first: a thumbnail already on disk is shown without touching the
+ * network, which is the whole point of the store (PLAN.md §11 — a central index
+ * on the server, a thumbnail cache on each device).
+ *
+ * The indirection through bytes exists because Immich's thumbnails need an
+ * `x-api-key` header, which an `<img src>` cannot send.
  *
  * Returns `undefined` while loading and when no thumbnail exists — the caller
- * shows its placeholder in both cases. Bytes fetched are reported to the
- * session cache so Settings can show a real figure.
+ * shows its placeholder in both cases.
  */
 export function useThumb(
   backend: PhotoBackend,
@@ -26,18 +29,29 @@ export function useThumb(
     let cancelled = false
     let created: string | undefined
 
-    backend
-      .thumb(id, size)
-      .then((blob) => {
-        if (!blob || cancelled) return
-        noteThumb(blob.size)
-        created = URL.createObjectURL(blob)
-        trackUrl(created)
-        setUrl(created)
-      })
-      .catch(() => {
-        /* fall back to the gradient */
-      })
+    const key = cacheKey(backend.cacheScope, size, id)
+
+    const show = (blob: Blob) => {
+      if (cancelled) return
+      created = URL.createObjectURL(blob)
+      trackUrl(created)
+      setUrl(created)
+    }
+
+    void (async () => {
+      const cached = await getThumb(key)
+      if (cached) {
+        show(cached)
+        return
+      }
+
+      const fetched = await backend.thumb(id, size).catch(() => null)
+      if (!fetched || cancelled) return
+
+      noteThumb(fetched.size)
+      putThumb(key, fetched)
+      show(fetched)
+    })()
 
     return () => {
       cancelled = true

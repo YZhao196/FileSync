@@ -14,6 +14,12 @@
 import type { Album, FileEntry, Photo, PhotoId, ServerStatus, TreeNode } from './types'
 
 export interface PhotoBackend {
+  /**
+   * Stable identity for on-disk cache keys. Asset ids are only unique within a
+   * server, so without this a cache key from one server would collide with the
+   * same id on another and show the wrong photo.
+   */
+  readonly cacheScope: string
   list(opts: { page: number; from?: Date; to?: Date }): Promise<Photo[]>
   get(id: PhotoId): Promise<Photo>
   /**

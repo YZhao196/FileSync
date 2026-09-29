@@ -1,5 +1,8 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { Button } from '@primer/react'
+import { Blankslate } from '@primer/react/experimental'
 import { AlbumPicker, ConfirmDialog, ShareDialog } from '../../components/Dialogs'
+import { Icon } from '../../components/Icon'
 import { PhotoTile } from '../../components/PhotoTile'
 import { useToast } from '../../components/Toaster'
 import type { PhotoBackend } from '../../core/backends'
@@ -234,40 +237,44 @@ export function PhotoCollection({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 10,
-          padding: '8px 20px',
-          borderBottom: '1px solid var(--bd)',
+          gap: 'var(--spacing-03)',
+          padding: 'var(--spacing-03) var(--spacing-05)',
+          borderBottom: '1px solid var(--border-subtle-01)',
           flexShrink: 0,
           flexWrap: 'wrap',
         }}
       >
         {selecting ? (
           <>
-            <button className="btn--link" onClick={reset} style={{ fontSize: 12 }}>
+            <Button variant="invisible" size="small" onClick={reset}>
               Cancel
-            </button>
-            <button className="btn--link" onClick={() => setSelected(new Set(allIds))} style={{ fontSize: 12 }}>
+            </Button>
+            <Button variant="invisible" size="small" onClick={() => setSelected(new Set(allIds))}>
               {allSelected ? 'Deselect all' : 'Select all'}
-            </button>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>{selected.size} selected</span>
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            </Button>
+            <span className="body-compact-01" style={{ color: 'var(--text-primary)' }}>
+              {selected.size} selected
+            </span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--spacing-03)', flexWrap: 'wrap' }}>
               {(['share', 'album', 'favourite', 'download'] as const).map((a) => (
-                <button
+                <Button
                   key={a}
-                  className="btn btn--sm"
+                  variant="invisible"
+                  size="small"
                   disabled={selected.size === 0}
                   onClick={() => act(undefined, a)}
                 >
-                  {a === 'album' ? '+ Album' : a[0].toUpperCase() + a.slice(1)}
-                </button>
+                  {a === 'album' ? 'Add to album' : a[0].toUpperCase() + a.slice(1)}
+                </Button>
               ))}
-              <button
-                className="btn btn--sm btn--danger"
+              <Button
+                variant="danger"
+                size="small"
                 disabled={selected.size === 0}
                 onClick={() => act(undefined, 'delete')}
               >
                 Delete
-              </button>
+              </Button>
             </div>
           </>
         ) : (
@@ -275,20 +282,25 @@ export function PhotoCollection({
             {leading}
 
             {showFilters && (
-              <div style={{ display: 'flex', gap: 6, marginLeft: 8 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 'var(--spacing-02)',
+                  marginLeft: 'var(--spacing-03)',
+                }}
+              >
                 {FILTERS.map((c) => (
                   <button
                     key={c.id}
                     onClick={() => setFilter(c.id)}
                     aria-pressed={filter === c.id}
+                    className="label-01"
                     style={{
-                      padding: '4px 12px',
-                      borderRadius: 20,
-                      fontSize: 12,
-                      border: `1px solid ${filter === c.id ? 'var(--acc)' : 'var(--bd)'}`,
-                      background: filter === c.id ? 'var(--acc)' : 'var(--surf2)',
-                      color: filter === c.id ? '#fff' : 'var(--tx)',
-                      fontWeight: filter === c.id ? 600 : 400,
+                      padding: 'var(--spacing-01) var(--spacing-04)',
+                      borderRadius: 'var(--border-radius-full)',
+                      border: `1px solid ${filter === c.id ? 'var(--background-brand)' : 'var(--border-subtle-01)'}`,
+                      background: filter === c.id ? 'var(--background-brand)' : 'var(--layer-01)',
+                      color: filter === c.id ? 'var(--text-on-color)' : 'var(--text-primary)',
                     }}
                   >
                     {c.label}
@@ -297,29 +309,39 @@ export function PhotoCollection({
               </div>
             )}
 
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                marginLeft: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--spacing-03)',
+              }}
+            >
               {visible.length > 0 && (
-                <button
-                  className="btn--link"
-                  onClick={() => setSelecting(true)}
-                  style={{ fontSize: 12, color: 'var(--txm)' }}
-                >
+                <Button variant="invisible" size="small" onClick={() => setSelecting(true)}>
                   Select
-                </button>
+                </Button>
               )}
-              <div style={{ display: 'flex', border: '1px solid var(--bd)', borderRadius: 8, overflow: 'hidden' }}>
-                {[4, 6, 8].map((n) => (
+              <div
+                style={{
+                  display: 'flex',
+                  border: '1px solid var(--border-subtle-01)',
+                  borderRadius: 'var(--border-radius-medium)',
+                  overflow: 'hidden',
+                }}
+              >
+                {[4, 6, 8].map((n, i) => (
                   <button
                     key={n}
                     onClick={() => setGridCols(n)}
                     aria-pressed={gridCols === n}
                     aria-label={`${n} columns`}
+                    className="label-01"
                     style={{
-                      padding: '3px 8px',
-                      fontSize: 11,
-                      background: gridCols === n ? 'var(--acc)' : 'var(--surf)',
-                      color: gridCols === n ? '#fff' : 'var(--tx)',
-                      borderRight: '1px solid var(--bd)',
+                      padding: 'var(--spacing-01) var(--spacing-03)',
+                      background: gridCols === n ? 'var(--background-brand)' : 'var(--layer-01)',
+                      color: gridCols === n ? 'var(--text-on-color)' : 'var(--text-primary)',
+                      borderRight: i < 2 ? '1px solid var(--border-subtle-01)' : 'none',
                     }}
                   >
                     {n}
@@ -336,19 +358,23 @@ export function PhotoCollection({
           {loading ? (
             <SkeletonGrid cols={gridCols} />
           ) : groups.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--txm)', fontSize: 13 }}>{empty}</div>
+            <Blankslate>
+              <Blankslate.Visual>
+                <Icon name="image" size={24} />
+              </Blankslate.Visual>
+              <Blankslate.Description>{empty}</Blankslate.Description>
+            </Blankslate>
           ) : (
             groups.map((g) => (
               <section key={g.date} id={groupAnchor(g.date)}>
                 <h2
+                  className="heading-compact-01"
                   style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: 'var(--tx)',
-                    padding: '16px 0 8px',
+                    color: 'var(--text-primary)',
+                    padding: 'var(--spacing-05) 0 var(--spacing-03)',
                     position: 'sticky',
                     top: 0,
-                    background: 'var(--surf)',
+                    background: 'var(--background)',
                     zIndex: 1,
                   }}
                 >
@@ -392,7 +418,8 @@ export function PhotoCollection({
               <button
                 key={g.date}
                 onClick={() => document.getElementById(groupAnchor(g.date))?.scrollIntoView({ behavior: 'smooth' })}
-                style={{ fontSize: 9, color: 'var(--txd)', padding: '2px 4px', textAlign: 'center' }}
+                className="label-01"
+                style={{ color: 'var(--text-helper)', padding: 'var(--spacing-01)', textAlign: 'center' }}
               >
                 {shortLabel(g.date)}
               </button>
@@ -449,7 +476,10 @@ function SkeletonGrid({ cols }: { cols: number }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 2 }}>
       {Array.from({ length: cols * 3 }, (_, i) => (
-        <div key={i} style={{ aspectRatio: '1', background: 'var(--skeleton)', borderRadius: 2 }} />
+        <div
+          key={i}
+          style={{ aspectRatio: '1', background: 'var(--layer-01)', borderRadius: 'var(--border-radius-small)' }}
+        />
       ))}
     </div>
   )

@@ -1,5 +1,6 @@
+import { IconButton } from '@primer/react'
 import { useApp } from '../state/store'
-import { Icon } from './Icon'
+import { carbonIcon } from './Icon'
 
 /**
  * The only chrome in the lean state, where both modules are handed to the OS
@@ -15,20 +16,17 @@ export function LeanCorner() {
   const label = onSettings ? 'Back to status' : 'Settings'
 
   return (
-    <button
-      className="btn btn--sm"
-      onClick={() => go(onSettings ? 'server' : 'settings')}
-      title={label}
+    <IconButton
+      icon={carbonIcon(onSettings ? 'back' : 'settings')}
       aria-label={label}
+      variant="default"
+      onClick={() => go(onSettings ? 'server' : 'settings')}
       style={{
         position: 'absolute',
-        top: 12,
-        right: 14,
+        top: 'var(--spacing-04)',
+        right: 'var(--spacing-04)',
         zIndex: 20,
-        background: 'var(--surf)',
       }}
-    >
-      <Icon name={onSettings ? 'back' : 'settings'} size={14} />
-    </button>
+    />
   )
 }

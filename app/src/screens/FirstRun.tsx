@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Button, FormControl, Label, Stack, TextInput } from '@primer/react'
+import { Card, InlineMessage } from '@primer/react/experimental'
 import { deriveConnection, testConnection } from '../core/client'
 import type { TestResult } from '../core/types'
 import { useApp } from '../state/store'
@@ -7,6 +9,12 @@ import { useApp } from '../state/store'
  * Screen 1 — the wizard. Both paths ship in every build: finishing the first is
  * what creates the server the second connects to, so they are sequential rather
  * than alternatives.
+ *
+ * Laid out like `ChoiceScreen` — a `Stack` of equal cards around an "OR" rule —
+ * but built as custom `Card` content rather than `ChoiceScreen` itself. Primer's
+ * `Card.Action` is pinned to the card's top-right corner, which suits a one-word
+ * choice title but collides with this card's longer heading; and the second card
+ * is a small connection test that needs a field, a button and a result message.
  */
 export function FirstRun() {
   const { setAddress, connection, credentials, setConnectionState, go, setRole } = useApp()
@@ -41,143 +49,101 @@ export function FirstRun() {
     state === 'testing' ? 'Testing…' : state === 'done' ? 'Connected' : 'Test connection'
 
   return (
-    <div
+    <Stack
+      direction="horizontal"
+      align="center"
+      justify="center"
+      gap="none"
       style={{
         position: 'absolute',
         inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--surf2)',
+        background: 'var(--background)',
         overflow: 'auto',
-        padding: 40,
+        padding: 'var(--spacing-08)',
       }}
     >
-      <div style={cardStyle}>
-        <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--tx)', lineHeight: 1.4 }}>
-          Set up this computer as your server
-        </div>
-        <span
-          style={{
-            display: 'inline-flex',
-            padding: '2px 8px',
-            background: 'var(--accbg)',
-            borderRadius: 3,
-            fontSize: 10,
-            fontWeight: 700,
-            color: 'var(--acc)',
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-            alignSelf: 'flex-start',
-          }}
-        >
-          Linux only
-        </span>
-        <div style={{ fontSize: 13, color: 'var(--tx2)', lineHeight: 1.55 }}>
-          Install Immich, Nextcloud, and Tailscale on this PC. Schedule nightly backups. About 5
-          minutes.
-        </div>
-        <button
-          className="btn btn--primary"
-          style={{ alignSelf: 'flex-start' }}
-          onClick={() => go('provision')}
-        >
-          Set up this computer →
-        </button>
+      <div style={{ flex: '1 1 0', minWidth: 0, maxWidth: 340 }}>
+        <Card padding="normal" borderRadius="large">
+          <Stack direction="vertical" gap="normal">
+            <h2 className="heading-compact-01" style={{ color: 'var(--text-primary)' }}>
+              Set up this computer as your server
+            </h2>
+            <p className="body-01" style={{ color: 'var(--text-secondary)' }}>
+              Install Immich, Nextcloud, and Tailscale on this PC. Schedule nightly backups. About 5
+              minutes.
+            </p>
+            <div>
+              <Label>Linux only</Label>
+            </div>
+            <Button variant="primary" block onClick={() => go('provision')}>
+              Set up this computer
+            </Button>
+          </Stack>
+        </Card>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 6,
-          padding: '0 20px',
-        }}
-      >
-        <div style={{ width: 1, height: 64, background: 'var(--bd)' }} />
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: 'var(--txd)',
-            background: 'var(--surf2)',
-            padding: '3px 7px',
-          }}
-        >
-          OR
-        </span>
-        <div style={{ width: 1, height: 64, background: 'var(--bd)' }} />
+      <OrDivider />
+
+      <div style={{ flex: '1 1 0', minWidth: 0, maxWidth: 340 }}>
+        <Card padding="normal" borderRadius="large">
+          <Stack direction="vertical" gap="normal">
+            <h2 className="heading-compact-01" style={{ color: 'var(--text-primary)' }}>
+              Connect to an existing server
+            </h2>
+            <p className="body-01" style={{ color: 'var(--text-secondary)' }}>
+              Point this app at a running server on this network or over Tailscale.
+            </p>
+
+            <FormControl id="server-address">
+              <FormControl.Label>Server address</FormControl.Label>
+              <TextInput
+                block
+                value={address}
+                placeholder="https://…"
+                onChange={(e) => setLocalAddress(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && runTest()}
+              />
+              <FormControl.Caption>Accepts a Tailscale hostname or full URL</FormControl.Caption>
+            </FormControl>
+
+            <Stack direction="vertical" gap="condensed">
+              <Button
+                variant="default"
+                block
+                onClick={runTest}
+                disabled={state === 'testing' || !address.trim()}
+              >
+                {buttonLabel}
+              </Button>
+
+              {result && state === 'failed' && (
+                <InlineMessage variant="critical" role="alert">
+                  {result.message}
+                </InlineMessage>
+              )}
+            </Stack>
+
+            <p className="helper-text-01" style={{ color: 'var(--text-helper)', textAlign: 'center' }}>
+              Later: scan a QR code from the desktop app
+            </p>
+          </Stack>
+        </Card>
       </div>
-
-      <div style={cardStyle}>
-        <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--tx)', lineHeight: 1.4 }}>
-          Connect to an existing server
-        </div>
-        <div style={{ fontSize: 13, color: 'var(--tx2)', lineHeight: 1.55 }}>
-          Point this app at a running server on this network or over Tailscale.
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          <label className="field-label" htmlFor="server-address">
-            Server address
-          </label>
-          <input
-            id="server-address"
-            className="input"
-            value={address}
-            placeholder="https://…"
-            onChange={(e) => setLocalAddress(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && runTest()}
-          />
-          <div className="hint">Accepts a Tailscale hostname or full URL</div>
-        </div>
-
-        <button
-          className="btn btn--primary"
-          onClick={runTest}
-          disabled={state === 'testing' || !address.trim()}
-          style={{
-            background: state === 'done' ? 'var(--ok)' : undefined,
-            cursor: state === 'testing' ? 'wait' : undefined,
-          }}
-        >
-          {buttonLabel}
-        </button>
-
-        {result && state === 'failed' && (
-          <div
-            role="alert"
-            style={{
-              fontSize: 12,
-              color: 'var(--danger)',
-              background: 'var(--dangerbg)',
-              border: '1px solid var(--bd)',
-              borderRadius: 6,
-              padding: '8px 10px',
-              lineHeight: 1.5,
-            }}
-          >
-            {result.message}
-          </div>
-        )}
-
-        <div className="hint" style={{ textAlign: 'center' }}>
-          Later: scan a QR code from the desktop app
-        </div>
-      </div>
-    </div>
+    </Stack>
   )
 }
 
-const cardStyle: React.CSSProperties = {
-  width: 310,
-  background: 'var(--surf)',
-  borderRadius: 12,
-  border: '1px solid var(--bd)',
-  padding: 28,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 14,
-  boxShadow: 'var(--shadow-raised)',
+function OrDivider() {
+  return (
+    <Stack direction="vertical" align="center" gap="condensed" style={{ padding: '0 var(--spacing-05)' }}>
+      <div style={{ width: 1, height: 64, background: 'var(--border-subtle-01)' }} />
+      <span
+        className="label-01"
+        style={{ color: 'var(--text-helper)', background: 'var(--background)', padding: '3px 7px' }}
+      >
+        OR
+      </span>
+      <div style={{ width: 1, height: 64, background: 'var(--border-subtle-01)' }} />
+    </Stack>
+  )
 }

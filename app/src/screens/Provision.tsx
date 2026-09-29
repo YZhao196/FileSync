@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Icon } from '../components/Icon'
+import { Button, FormControl, Heading, IconButton, Stack, TextInput } from '@primer/react'
+import { InlineMessage } from '@primer/react/experimental'
+import { carbonIcon, Icon } from '../components/Icon'
 import { useToast } from '../components/Toaster'
 import type { Preflight, ProvisionEvent } from '../core/types'
 import { compactBytes } from '../lib/format'
@@ -88,13 +90,26 @@ export function Provision() {
   const backupConfigured = Boolean(b2Bucket.trim() && b2KeyId.trim() && b2AppKey.trim() && resticPassword)
 
   return (
-    <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'var(--surf2)', padding: '28px 32px 40px' }}>
-      <div style={{ maxWidth: 560, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <header style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button className="btn btn--sm" onClick={() => go('first-run')} aria-label="Back">
-            <Icon name="back" size={13} />
-          </button>
-          <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--tx)' }}>Set up this computer as your server</h1>
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        overflowY: 'auto',
+        background: 'var(--background)',
+        padding: 'var(--spacing-06) var(--spacing-07) var(--spacing-08)',
+      }}
+    >
+      <Stack direction="vertical" gap="spacious" style={{ maxWidth: 560, margin: '0 auto' }}>
+        <header style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-04)' }}>
+          <IconButton
+            icon={carbonIcon('back')}
+            aria-label="Back"
+            size="small"
+            onClick={() => go('first-run')}
+          />
+          <Heading as="h1" variant="medium">
+            Set up this computer as your server
+          </Heading>
         </header>
 
         <StepBar current={step} />
@@ -102,20 +117,20 @@ export function Provision() {
         {step === 'check' && (
           <Panel title="Can this machine host?">
             {!check ? (
-              <p style={p}>Checking…</p>
+              <Body>Checking…</Body>
             ) : (
               <>
-                <p style={p}>
+                <Body>
                   Immich and Nextcloud are Linux containers, so the host needs a Linux environment
                   running Docker. Everything else is a preference.
-                </p>
+                </Body>
 
                 <Facts check={check} />
 
                 {check.blockers.length > 0 && (
                   <Notice tone="bad">
                     <strong>This machine cannot be the server.</strong>
-                    <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                    <ul style={{ margin: 'var(--spacing-02) 0 0', paddingLeft: 'var(--spacing-05)' }}>
                       {check.blockers.map((b) => (
                         <li key={b}>{b}</li>
                       ))}
@@ -125,7 +140,7 @@ export function Provision() {
 
                 {check.warnings.length > 0 && (
                   <Notice tone="warn">
-                    <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    <ul style={{ margin: 0, paddingLeft: 'var(--spacing-05)' }}>
                       {check.warnings.map((w) => (
                         <li key={w}>{w}</li>
                       ))}
@@ -134,16 +149,12 @@ export function Provision() {
                 )}
 
                 <Actions>
-                  <button className="btn" onClick={() => go('first-run')}>
+                  <Button variant="default" onClick={() => go('first-run')}>
                     Connect to a server instead
-                  </button>
-                  <button
-                    className="btn btn--primary"
-                    disabled={!check.ok}
-                    onClick={() => setStep('folders')}
-                  >
+                  </Button>
+                  <Button variant="primary" disabled={!check.ok} onClick={() => setStep('folders')}>
                     Continue
-                  </button>
+                  </Button>
                 </Actions>
               </>
             )}
@@ -152,10 +163,10 @@ export function Provision() {
 
         {step === 'folders' && (
           <Panel title="Where the libraries live">
-            <p style={p}>
+            <Body>
               Two folders, one per role. Different disks are strongly preferred — that is what keeps
               a drive failure to one role instead of both.
-            </p>
+            </Body>
 
             <FolderField
               label="Photos folder"
@@ -178,44 +189,36 @@ export function Provision() {
               </Notice>
             )}
 
-            <div>
-              <label className="field-label" htmlFor="ts-name">
-                Tailscale name for this server
-              </label>
-              <input
-                id="ts-name"
-                className="input"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                style={{ marginTop: 6 }}
-              />
-              <div className="hint" style={{ marginTop: 6 }}>
+            <FormControl id="ts-name">
+              <FormControl.Label>Tailscale name for this server</FormControl.Label>
+              <TextInput block value={name} onChange={(e) => setName(e.target.value)} />
+              <FormControl.Caption>
                 Your phones and laptops reach the server by this name. Nothing else needs changing
                 later if the server is replaced.
-              </div>
-            </div>
+              </FormControl.Caption>
+            </FormControl>
 
             <Actions>
-              <button className="btn" onClick={() => setStep('check')}>
+              <Button variant="default" onClick={() => setStep('check')}>
                 Back
-              </button>
-              <button
-                className="btn btn--primary"
+              </Button>
+              <Button
+                variant="primary"
                 disabled={!photosFolder.trim() || !filesFolder.trim() || photosFolder === filesFolder}
                 onClick={() => setStep('backup')}
               >
                 Continue
-              </button>
+              </Button>
             </Actions>
           </Panel>
         )}
 
         {step === 'backup' && (
           <Panel title="Off-site backup">
-            <p style={p}>
+            <Body>
               A nightly restic snapshot to Backblaze B2. This is the copy that survives the machine
               being lost, stolen or flooded, so it is worth setting up now rather than later.
-            </p>
+            </Body>
 
             <CredField label="Bucket name" value={b2Bucket} onChange={setB2Bucket} placeholder="my-filesynapse" />
             <CredField label="B2 key ID" value={b2KeyId} onChange={setB2KeyId} />
@@ -236,23 +239,23 @@ export function Provision() {
             )}
 
             <Actions>
-              <button className="btn" onClick={() => setStep('folders')}>
+              <Button variant="default" onClick={() => setStep('folders')}>
                 Back
-              </button>
-              <button className="btn btn--primary" onClick={begin}>
+              </Button>
+              <Button variant="primary" onClick={begin}>
                 {backupConfigured ? 'Provision this computer' : 'Provision without backup'}
-              </button>
+              </Button>
             </Actions>
           </Panel>
         )}
 
         {step === 'run' && (
           <Panel title="Provisioning">
-            <p style={p}>
+            <Body>
               Installing Docker, writing the stack, starting Immich and Nextcloud, joining
               Tailscale{backupConfigured ? ', and scheduling the nightly backup' : ''}. This takes
               several minutes and will ask for your password.
-            </p>
+            </Body>
             <EventList events={run?.events ?? []} />
             {run?.failed && (
               <Notice tone="bad">
@@ -261,19 +264,19 @@ export function Provision() {
               </Notice>
             )}
             <Actions>
-              <button className="btn" onClick={() => go('server')}>
+              <Button variant="default" onClick={() => go('server')}>
                 Leave it running in the background
-              </button>
+              </Button>
             </Actions>
           </Panel>
         )}
 
         {step === 'done' && (
           <Panel title="This computer is the server">
-            <p style={p}>
+            <Body>
               Immich and Nextcloud are running, and everything on your network reaches them by{' '}
-              <code style={code}>{name}</code>.
-            </p>
+              <code className="code-01">{name}</code>.
+            </Body>
 
             {run?.failed && (
               <Notice tone="bad">
@@ -300,8 +303,8 @@ export function Provision() {
             />
 
             <Actions>
-              <button
-                className="btn btn--primary"
+              <Button
+                variant="primary"
                 onClick={() => {
                   // The three service URLs follow from the one name, so they are
                   // derived rather than asked for.
@@ -315,18 +318,18 @@ export function Provision() {
                 }}
               >
                 Point this app at it
-              </button>
-              <button className="btn" onClick={() => go('server')}>
+              </Button>
+              <Button variant="default" onClick={() => go('server')}>
                 Skip
-              </button>
+              </Button>
             </Actions>
-            <p style={{ ...p, fontSize: 11, color: 'var(--txd)' }}>
+            <Footnote>
               This app currently points at {connection.address || 'nothing'}. It can point at the new
               server now, or you can change it later in Settings.
-            </p>
+            </Footnote>
           </Panel>
         )}
-      </div>
+      </Stack>
     </div>
   )
 }
@@ -342,13 +345,21 @@ const STEPS: Array<{ id: Step; label: string }> = [
 function StepBar({ current }: { current: Step }) {
   const index = STEPS.findIndex((s) => s.id === current)
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+    <div
+      className="label-01"
+      style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-03)' }}
+    >
       {STEPS.map((s, i) => (
-        <span key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {i > 0 && <span style={{ color: 'var(--txd)' }}>›</span>}
+        <span key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-03)' }}>
+          {i > 0 && <span style={{ color: 'var(--text-helper)' }}>›</span>}
           <span
             style={{
-              color: i === index ? 'var(--acc)' : i < index ? 'var(--tx2)' : 'var(--txd)',
+              color:
+                i === index
+                  ? 'var(--text-primary)'
+                  : i < index
+                    ? 'var(--text-secondary)'
+                    : 'var(--text-helper)',
               fontWeight: i === index ? 600 : 400,
             }}
           >
@@ -369,39 +380,79 @@ function Facts({ check }: { check: Preflight }) {
   ]
 
   return (
-    <div className="group">
-      {rows.map(([label, value, ok]) => (
-        <div key={label} className="group__item">
-          <span>{label}</span>
-          <span
-            style={{
-              fontSize: 12,
-              color: ok === null ? 'var(--tx2)' : ok ? 'var(--ok)' : 'var(--danger)',
-            }}
-          >
-            {value}
-          </span>
-        </div>
+    <Rows>
+      {rows.map(([label, value, ok], i) => (
+        <Row
+          key={label}
+          label={label}
+          last={i === rows.length - 1 && check.volumes.length === 0}
+          value={
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 'var(--spacing-02)',
+                color:
+                  ok === null
+                    ? 'var(--text-secondary)'
+                    : ok
+                      ? 'var(--support-success)'
+                      : 'var(--support-error)',
+              }}
+            >
+              {ok !== null && <Icon name={ok ? 'check' : 'alert'} filled />}
+              {value}
+            </span>
+          }
+        />
       ))}
       {check.volumes.length > 0 && (
-        <div className="group__item" style={{ display: 'block' }}>
-          <span className="hint">
-            Drives: {check.volumes.map((v) => `${v.mount} (${compactBytes(v.freeBytes)} free)`).join(' · ')}
+        <div style={{ padding: 'var(--spacing-04) var(--spacing-05)' }}>
+          <span className="helper-text-01" style={{ color: 'var(--text-helper)' }}>
+            Drives:{' '}
+            {check.volumes.map((v) => `${v.mount} (${compactBytes(v.freeBytes)} free)`).join(' · ')}
           </span>
         </div>
       )}
-    </div>
+    </Rows>
   )
 }
 
 function EventList({ events }: { events: ProvisionEvent[] }) {
-  if (!events.length) return <p style={p}>Starting…</p>
+  if (!events.length) return <Body>Starting…</Body>
   return (
-    <ol style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 7, fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+    <ol
+      className="code-02"
+      style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-03)' }}
+    >
       {events.map((e, i) => (
-        <li key={`${e.step}-${i}`} style={{ display: 'flex', gap: 8, color: e.state === 'failed' ? 'var(--danger)' : 'var(--tx2)' }}>
-          <span aria-hidden="true">
-            {e.state === 'ok' ? '✓' : e.state === 'failed' ? '✕' : e.state === 'start' ? '◌' : '–'}
+        <li
+          key={`${e.step}-${i}`}
+          style={{
+            display: 'flex',
+            gap: 'var(--spacing-03)',
+            color: e.state === 'failed' ? 'var(--text-error)' : 'var(--text-secondary)',
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              display: 'inline-flex',
+              color:
+                e.state === 'ok'
+                  ? 'var(--support-success)'
+                  : e.state === 'failed'
+                    ? 'var(--support-error)'
+                    : 'var(--text-helper)',
+            }}
+          >
+            {e.state === 'ok' ? (
+              <Icon name="check" filled />
+            ) : e.state === 'failed' ? (
+              <Icon name="alert" filled />
+            ) : (
+              (e.state === 'start' ? '◌' : '–')
+            )}
           </span>
           <span>
             {e.step}
@@ -428,28 +479,29 @@ function FolderField({
 }) {
   const free = volumes.find((v) => value.startsWith(v.mount))
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-      <span className="field-label">{label}</span>
-      <span className="hint">{hint}</span>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input className="input" value={value} aria-label={label} onChange={(e) => onChange(e.target.value)} />
-        <button
-          className="btn"
-          style={{ whiteSpace: 'nowrap' }}
+    <FormControl>
+      <FormControl.Label>{label}</FormControl.Label>
+      <div style={{ display: 'flex', gap: 'var(--spacing-03)', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <TextInput block value={value} onChange={(e) => onChange(e.target.value)} />
+        </div>
+        <Button
+          variant="default"
           onClick={async () => {
             const picked = await pickFolder(value)
             if (picked) onChange(picked)
           }}
         >
-          Browse…
-        </button>
+          Browse
+        </Button>
       </div>
+      <FormControl.Caption>{hint}</FormControl.Caption>
       {free && (
-        <span className="hint">
+        <span className="helper-text-01" style={{ color: 'var(--text-helper)' }}>
           {free.mount} has {compactBytes(free.freeBytes)} free
         </span>
       )}
-    </div>
+    </FormControl>
   )
 }
 
@@ -469,13 +521,10 @@ function CredField({
   hint?: string
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-      <label className="field-label" htmlFor={`cred-${label}`}>
-        {label}
-      </label>
-      <input
-        id={`cred-${label}`}
-        className="input"
+    <FormControl>
+      <FormControl.Label>{label}</FormControl.Label>
+      <TextInput
+        block
         type={secret ? 'password' : 'text'}
         value={value}
         placeholder={placeholder}
@@ -483,26 +532,49 @@ function CredField({
         spellCheck={false}
         onChange={(e) => onChange(e.target.value)}
       />
-      {hint && <span className="hint">{hint}</span>}
-    </div>
+      {hint && <FormControl.Caption>{hint}</FormControl.Caption>}
+    </FormControl>
   )
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)' }}>{title}</h2>
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-05)' }}>
+      <Heading as="h2" variant="small">
+        {title}
+      </Heading>
       {children}
     </section>
   )
 }
 
+function Body({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="body-01" style={{ color: 'var(--text-secondary)' }}>
+      {children}
+    </p>
+  )
+}
+
+function Footnote({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="helper-text-01" style={{ color: 'var(--text-helper)' }}>
+      {children}
+    </p>
+  )
+}
+
 function StepList({ lines }: { lines: string[] }) {
   return (
-    <ol style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 7, fontFamily: "'DM Mono', monospace", fontSize: 12 }}>
+    <ol
+      className="code-02"
+      style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-03)' }}
+    >
       {lines.map((line) => (
-        <li key={line} style={{ display: 'flex', gap: 8, color: 'var(--tx2)' }}>
-          <span style={{ color: 'var(--txd)' }}>○</span>
+        <li key={line} style={{ display: 'flex', gap: 'var(--spacing-03)', color: 'var(--text-secondary)' }}>
+          <span aria-hidden="true" style={{ color: 'var(--text-helper)' }}>
+            ○
+          </span>
           {line}
         </li>
       ))}
@@ -510,18 +582,14 @@ function StepList({ lines }: { lines: string[] }) {
   )
 }
 
-function Notice({ tone, children }: { tone: 'warn' | 'bad'; children: React.ReactNode }) {
-  const bad = tone === 'bad'
+function Rows({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        fontSize: 12,
-        lineHeight: 1.55,
-        padding: '10px 12px',
-        borderRadius: 8,
-        border: '1px solid var(--bd)',
-        background: bad ? 'var(--dangerbg)' : 'var(--warnbg)',
-        color: bad ? 'var(--danger)' : 'var(--warn)',
+        border: '1px solid var(--border-subtle-01)',
+        borderRadius: 'var(--border-radius-medium)',
+        background: 'var(--layer-01)',
+        overflow: 'hidden',
       }}
     >
       {children}
@@ -529,15 +597,51 @@ function Notice({ tone, children }: { tone: 'warn' | 'bad'; children: React.Reac
   )
 }
 
-function Actions({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{children}</div>
+function Row({
+  label,
+  value,
+  last,
+}: {
+  label: string
+  value: React.ReactNode
+  last?: boolean
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 'var(--spacing-04)',
+        padding: 'var(--spacing-04) var(--spacing-05)',
+        borderBottom: last ? 'none' : '1px solid var(--border-subtle-01)',
+      }}
+    >
+      <span className="body-compact-01" style={{ color: 'var(--text-primary)' }}>
+        {label}
+      </span>
+      <span className="body-compact-01" style={{ color: 'var(--text-secondary)' }}>
+        {value}
+      </span>
+    </div>
+  )
 }
 
-const p: React.CSSProperties = { fontSize: 13, color: 'var(--tx2)', lineHeight: 1.55 }
-const code: React.CSSProperties = {
-  fontSize: 12,
-  color: 'var(--tx2)',
-  background: 'var(--surf)',
-  padding: '2px 8px',
-  borderRadius: 3,
+function Notice({ tone, children }: { tone: 'warn' | 'bad'; children: React.ReactNode }) {
+  // `InlineMessage` lays its icon and body out as two grid cells, so its body
+  // must be a single element — loose text nodes would each become their own
+  // cell and push the copy into a sliver.
+  return (
+    <InlineMessage variant={tone === 'bad' ? 'critical' : 'warning'}>
+      <div>{children}</div>
+    </InlineMessage>
+  )
+}
+
+function Actions({ children }: { children: React.ReactNode }) {
+  return (
+    <Stack direction="horizontal" gap="condensed" wrap="wrap" align="center">
+      {children}
+    </Stack>
+  )
 }

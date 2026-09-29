@@ -51,7 +51,7 @@ function Shell() {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        background: 'var(--surf)',
+        background: 'var(--layer-01)',
         overflow: 'hidden',
       }}
     >
@@ -62,7 +62,7 @@ function Shell() {
             flex: 1,
             position: 'relative',
             overflow: 'hidden',
-            background: 'var(--surf)',
+            background: 'var(--layer-01)',
           }}
         >
           {/* Screens position themselves absolutely, so this is the containing

@@ -50,6 +50,41 @@ Append `?platform=macos`, `?platform=windows` or `?platform=linux` to the URL to
 override OS detection — useful for checking how keyboard shortcuts and
 file-manager names render on a machine you don't have. See `src/lib/platform.ts`.
 
+## Design system
+
+The UI is **BuildNexus**: Carbon v11 tokens, Primer React 38.40 components, IBM
+Plex type, Carbon icons.
+
+```
+src/styles/tokens.css               Carbon tokens, vendored from the design system
+src/styles/buildnexus.css           Primer plus the remap onto those tokens
+src/styles/buildnexus-overrides.css Our patches for gaps in that remap
+src/styles/fonts.css                IBM Plex @font-face (files in public/fonts)
+src/styles/base.css                 Application base — reset, selection, toast
+```
+
+`buildnexus.css` ends with a block that points Primer's own variables at the
+Carbon tokens, which is what makes a stock Primer component come out in the
+BuildNexus palette. Do not remove it.
+
+`buildnexus-overrides.css` fills the gaps it leaves. The known one: the disabled
+button fills are **not** remapped, so without it a disabled primary button
+renders Primer's own green rather than Carbon's neutral disabled grey. It is a
+separate file so the vendored stylesheet stays byte-identical to the design
+system and can be re-copied without losing the fix.
+
+`base.css` is no longer a component stylesheet. Every screen builds from Primer,
+so `.btn`, `.card`, `.group`, `.seg` and friends are gone; what remains is the
+page itself. In particular it deliberately has **no `outline: none` on focus** —
+BuildNexus requires a visible ring on every interactive element and Primer draws
+it, so a reset there would silently remove the keyboard affordance.
+
+Icons come from `components/Icon.tsx`, a name-based facade over
+`@carbon/icons-react` — `<Icon name="folder" size={16} />`. Sizes snap to
+Carbon's 16/20/24/32, since the design system says not to scale icons.
+`carbonIcon('folder')` returns the component itself, for APIs that take an icon
+(`Card.Icon`, a Button's `leadingVisual`).
+
 ## Layout
 
 ```

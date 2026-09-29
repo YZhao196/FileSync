@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Button, FormControl, Label, SegmentedControl, TextInput, ToggleSwitch } from '@primer/react'
 import { Icon } from '../components/Icon'
 import { useToast } from '../components/Toaster'
 import { testConnection } from '../core/client'
@@ -14,6 +15,8 @@ import {
   setAutostart,
   setTrayEnabled,
 } from '../native/bridge'
+
+const THEMES: ThemeChoice[] = ['system', 'light', 'dark']
 
 export function Settings() {
   const {
@@ -72,8 +75,16 @@ export function Settings() {
   }
 
   return (
-    <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', padding: '24px 32px', background: 'var(--surf2)' }}>
-      <div style={{ maxWidth: 540, display: 'flex', flexDirection: 'column', gap: 28 }}>
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        overflowY: 'auto',
+        padding: 'var(--spacing-06) var(--spacing-07)',
+        background: 'var(--background)',
+      }}
+    >
+      <div style={{ maxWidth: 540, display: 'flex', flexDirection: 'column', gap: 'var(--spacing-07)' }}>
         <Group title="Server credentials">
           <CredField
             label="Immich API key"
@@ -98,142 +109,161 @@ export function Settings() {
             onChange={(v) => setCredentials({ ...credentials, agentToken: v })}
             secret
           />
-          <div className="group__item" style={{ display: 'block' }}>
-            <span className="hint">
+          <Row last block>
+            <span className="helper-text-01" style={{ color: 'var(--text-helper)' }}>
               {isNative()
                 ? "Stored in this computer's OS keychain — Windows Credential Manager, macOS Keychain, or libsecret. Never written to a plaintext file."
                 : 'Held for this session only in a browser. The desktop build keeps them in the OS keychain.'}
             </span>
-          </div>
+          </Row>
         </Group>
 
         <Group title="Photos">
-          <div className="group__item">
+          <Row last={!( !photosInApp && isHost )}>
             <span>Photo viewer</span>
-            <Segmented
-              options={[
-                { label: 'In-app', active: photosInApp, onSelect: () => setPhotoMode('inapp') },
-                {
-                  label: 'System viewer',
-                  active: !photosInApp,
-                  onSelect: () => chooseOsMode(setPhotoMode, isHost),
-                },
-              ]}
-            />
-          </div>
+            <SegmentedControl
+              aria-label="Photo viewer"
+              size="small"
+              onChange={(index) => (index === 0 ? setPhotoMode('inapp') : chooseOsMode(setPhotoMode, isHost))}
+            >
+              <SegmentedControl.Button selected={photosInApp}>In-app</SegmentedControl.Button>
+              <SegmentedControl.Button selected={!photosInApp}>System viewer</SegmentedControl.Button>
+            </SegmentedControl>
+          </Row>
           {!photosInApp && isHost && (
-            <div className="group__item">
-              <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Row last>
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-01)' }}>
                 <span>Photos folder</span>
-                <code style={{ fontSize: 11, color: 'var(--tx2)' }}>{photoFolder}</code>
+                <code className="code-01" style={{ color: 'var(--text-secondary)' }}>
+                  {photoFolder}
+                </code>
               </span>
-              <button className="btn btn--sm" onClick={() => go('timeline')}>
+              <Button size="small" onClick={() => go('timeline')}>
                 Change location
-              </button>
-            </div>
+              </Button>
+            </Row>
           )}
         </Group>
 
         <Group title="Files">
-          <div className="group__item">
+          <Row last={!( !filesInApp && isHost )}>
             <span>File browser</span>
-            <Segmented
-              options={[
-                { label: 'In-app', active: filesInApp, onSelect: () => setFileMode('inapp') },
-                {
-                  label: 'System explorer',
-                  active: !filesInApp,
-                  onSelect: () => chooseOsMode(setFileMode, isHost),
-                },
-              ]}
-            />
-          </div>
+            <SegmentedControl
+              aria-label="File browser"
+              size="small"
+              onChange={(index) => (index === 0 ? setFileMode('inapp') : chooseOsMode(setFileMode, isHost))}
+            >
+              <SegmentedControl.Button selected={filesInApp}>In-app</SegmentedControl.Button>
+              <SegmentedControl.Button selected={!filesInApp}>System explorer</SegmentedControl.Button>
+            </SegmentedControl>
+          </Row>
           {!filesInApp && isHost && (
-            <div className="group__item">
-              <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Row last>
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-01)' }}>
                 <span>Files folder</span>
-                <code style={{ fontSize: 11, color: 'var(--tx2)' }}>{fileFolder}</code>
+                <code className="code-01" style={{ color: 'var(--text-secondary)' }}>
+                  {fileFolder}
+                </code>
               </span>
-              <button className="btn btn--sm" onClick={() => go('files')}>
+              <Button size="small" onClick={() => go('files')}>
                 Change location
-              </button>
-            </div>
+              </Button>
+            </Row>
           )}
         </Group>
 
         <Group title="Server">
-          <div className="group__item">
+          <Row>
             <span>This device</span>
-            <span style={{ fontSize: 12, color: isHost ? 'var(--ok)' : 'var(--tx2)' }}>
+            <span style={{ color: isHost ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
               {role === 'host' ? 'Storage server' : 'Client'}
             </span>
-          </div>
-          <div className="group__item">
+          </Row>
+          <Row>
             <span>Address</span>
-            <code style={{ fontSize: 12, color: 'var(--tx2)', background: 'var(--surf2)', padding: '2px 8px', borderRadius: 3 }}>
+            <code
+              className="code-01"
+              style={{
+                color: 'var(--text-secondary)',
+                background: 'var(--field-02)',
+                padding: 'var(--spacing-01) var(--spacing-03)',
+                borderRadius: 'var(--border-radius-small)',
+              }}
+            >
               {connection.address || 'not set'}
             </code>
-          </div>
-          <div className="group__item group__item--action" onClick={runTest}>
+          </Row>
+          <Row interactive onClick={runTest}>
             <span>Test connection</span>
-            <span style={{ fontSize: 12, color: connectionState === 'healthy' ? 'var(--ok)' : 'var(--txm)' }}>
-              {testing ? 'Testing…' : connectionState === 'healthy' ? '● Healthy' : '→'}
-            </span>
-          </div>
+            {testing ? (
+              <span style={{ color: 'var(--text-secondary)' }}>Testing…</span>
+            ) : connectionState === 'healthy' ? (
+              <Label variant="success">Healthy</Label>
+            ) : (
+              <span style={{ color: 'var(--text-placeholder)' }}>→</span>
+            )}
+          </Row>
           {role === 'client' && (
-            <div className="group__item group__item--action" onClick={() => go('replace-server')}>
+            <Row interactive onClick={() => go('replace-server')}>
               <span>Replace this server…</span>
-              <span style={{ color: 'var(--txd)' }}>›</span>
-            </div>
+              <span style={{ color: 'var(--text-placeholder)' }}>›</span>
+            </Row>
           )}
-          <div
-            className="group__item group__item--danger"
+          <Row
+            last
+            interactive
+            danger
             onClick={() => {
               resetConnection()
               show('Disconnected')
             }}
           >
             <span>Disconnect</span>
-          </div>
+          </Row>
         </Group>
 
         <Group title="Appearance">
-          <div className="group__item">
+          <Row last>
             <span>Theme</span>
-            <Segmented
-              options={(['system', 'light', 'dark'] as ThemeChoice[]).map((t) => ({
-                label: t[0].toUpperCase() + t.slice(1),
-                active: theme === t,
-                onSelect: () => setTheme(t),
-              }))}
-            />
-          </div>
+            <SegmentedControl
+              aria-label="Theme"
+              size="small"
+              onChange={(index) => setTheme(THEMES[index])}
+            >
+              {THEMES.map((t) => (
+                <SegmentedControl.Button key={t} selected={theme === t}>
+                  {t[0].toUpperCase() + t.slice(1)}
+                </SegmentedControl.Button>
+              ))}
+            </SegmentedControl>
+          </Row>
         </Group>
 
         <Group title="Storage">
-          <div className="group__item">
+          <Row>
             <span>Thumbnail cache</span>
-            <span style={{ fontSize: 13, color: 'var(--tx2)' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>
               {cached.count === 0
                 ? 'Empty'
                 : `${cached.count} image${cached.count === 1 ? '' : 's'} · ${compactBytes(cached.bytes)}`}
             </span>
-          </div>
-          <div
-            className="group__item group__item--danger"
+          </Row>
+          <Row
+            interactive
+            danger
             onClick={() => {
               clearCache()
               show('Cache cleared — visible thumbnails will reload')
             }}
           >
             <span>Clear cache</span>
-          </div>
-          <div className="group__item" style={{ display: 'block' }}>
-            <span className="hint">
+          </Row>
+          <Row last block>
+            <span className="helper-text-01" style={{ color: 'var(--text-helper)' }}>
               This is the session cache. Nothing is kept on disk yet, so a restart starts cold and
               the cache cannot speed up a first load — see for-human.md.
             </span>
-          </div>
+          </Row>
         </Group>
 
         <Group title="Desktop">
@@ -242,19 +272,26 @@ export function Settings() {
         </Group>
 
         <Group title="About">
-          <div className="group__item">
+          <Row>
             <span>Version</span>
-            <code style={{ fontSize: 12, color: 'var(--tx2)' }}>
+            <code className="code-01" style={{ color: 'var(--text-secondary)' }}>
               {version ?? 'development build'} ·{' '}
               {status ? 'server reachable' : 'server unreachable'}
             </code>
-          </div>
-          <div className="group__item group__item--action" onClick={() => show('Licences: React (MIT), DM Sans & DM Mono (OFL)')}>
-            <span style={{ color: 'var(--acc)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          </Row>
+          <Row last interactive onClick={() => show('Licences: React (MIT), DM Sans & DM Mono (OFL)')}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 'var(--spacing-02)',
+                color: 'var(--link-primary)',
+              }}
+            >
               Open-source licences
-              <Icon name="external" size={12} />
+              <Icon name="external" size={16} />
             </span>
-          </div>
+          </Row>
         </Group>
       </div>
     </div>
@@ -288,48 +325,37 @@ function LaunchAtLogin() {
 
   if (!isNative()) {
     return (
-      <div className="group__item">
+      <Row>
         <span>Launch at login</span>
-        <span style={{ fontSize: 12, color: 'var(--txm)' }}>Needs the desktop app</span>
-      </div>
+        <span className="helper-text-01" style={{ color: 'var(--text-helper)' }}>
+          Needs the desktop app
+        </span>
+      </Row>
     )
   }
 
   return (
-    <div className="group__item">
-      <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <span>Launch at login</span>
-        <span className="hint">Start hidden in the tray when you sign in.</span>
+    <Row>
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-01)' }}>
+        <span id="launch-at-login">Launch at login</span>
+        <span className="helper-text-01" style={{ color: 'var(--text-helper)' }}>
+          Start hidden in the tray when you sign in.
+        </span>
       </span>
-      <Segmented
-        options={[
-          {
-            label: 'On',
-            active: on === true,
-            onSelect: async () => {
-              if (pending) return
-              setPending(true)
-              const ok = await setAutostart(true)
-              setOn(ok ? true : on)
-              if (!ok) show('Could not change the login item')
-              setPending(false)
-            },
-          },
-          {
-            label: 'Off',
-            active: on === false,
-            onSelect: async () => {
-              if (pending) return
-              setPending(true)
-              const ok = await setAutostart(false)
-              setOn(ok ? false : on)
-              if (!ok) show('Could not change the login item')
-              setPending(false)
-            },
-          },
-        ]}
+      <ToggleSwitch
+        aria-labelledby="launch-at-login"
+        checked={on === true}
+        loading={pending}
+        onChange={async (checked) => {
+          if (pending) return
+          setPending(true)
+          const ok = await setAutostart(checked)
+          setOn(ok ? checked : on)
+          if (!ok) show('Could not change the login item')
+          setPending(false)
+        }}
       />
-    </div>
+    </Row>
   )
 }
 
@@ -349,42 +375,33 @@ function TrayToggle() {
 
   if (!isNative()) {
     return (
-      <div className="group__item">
+      <Row last>
         <span>Tray icon</span>
-        <span style={{ fontSize: 12, color: 'var(--txm)' }}>Needs the desktop app</span>
-      </div>
+        <span className="helper-text-01" style={{ color: 'var(--text-helper)' }}>
+          Needs the desktop app
+        </span>
+      </Row>
     )
   }
 
   return (
-    <div className="group__item">
-      <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <span>Tray icon</span>
-        <span className="hint">Shows backup state without opening the window.</span>
+    <Row last>
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-01)' }}>
+        <span id="tray-icon">Tray icon</span>
+        <span className="helper-text-01" style={{ color: 'var(--text-helper)' }}>
+          Shows backup state without opening the window.
+        </span>
       </span>
-      <Segmented
-        options={[
-          {
-            label: 'Show',
-            active: on === true,
-            onSelect: async () => {
-              const ok = await setTrayEnabled(true)
-              setOn(ok ? true : on)
-              if (!ok) show('Could not show the tray icon')
-            },
-          },
-          {
-            label: 'Hide',
-            active: on === false,
-            onSelect: async () => {
-              const ok = await setTrayEnabled(false)
-              setOn(ok ? false : on)
-              if (!ok) show('Could not hide the tray icon')
-            },
-          },
-        ]}
+      <ToggleSwitch
+        aria-labelledby="tray-icon"
+        checked={on === true}
+        onChange={async (checked) => {
+          const ok = await setTrayEnabled(checked)
+          setOn(ok ? checked : on)
+          if (!ok) show(checked ? 'Could not show the tray icon' : 'Could not hide the tray icon')
+        }}
       />
-    </div>
+    </Row>
   )
 }
 
@@ -400,49 +417,76 @@ function CredField({
   secret?: boolean
 }) {
   return (
-    <div className="group__item" style={{ display: 'block' }}>
-      <label className="field-label" style={{ display: 'block', marginBottom: 6 }}>
-        {label}
-      </label>
-      <input
-        className="input"
-        type={secret ? 'password' : 'text'}
-        value={value}
-        aria-label={label}
-        autoComplete="off"
-        spellCheck={false}
-        onChange={(e) => onChange(e.target.value)}
-      />
+    <div style={{ padding: 'var(--spacing-04) var(--spacing-05)', borderBottom: '1px solid var(--border-subtle-01)' }}>
+      <FormControl>
+        <FormControl.Label>{label}</FormControl.Label>
+        <TextInput
+          type={secret ? 'password' : 'text'}
+          value={value}
+          aria-label={label}
+          autoComplete="off"
+          spellCheck={false}
+          onChange={(e) => onChange(e.target.value)}
+          block
+        />
+      </FormControl>
     </div>
   )
 }
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section>
-      <h2 className="section-title">{title}</h2>
-      <div className="group">{children}</div>
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-03)' }}>
+      <h2 className="heading-compact-02" style={{ color: 'var(--text-primary)' }}>
+        {title}
+      </h2>
+      <div
+        style={{
+          border: '1px solid var(--border-subtle-01)',
+          borderRadius: 'var(--border-radius-medium)',
+          overflow: 'hidden',
+          background: 'var(--layer-01)',
+        }}
+      >
+        {children}
+      </div>
     </section>
   )
 }
 
-function Segmented({
-  options,
+/** One settings row: a name, a control, and a hairline under all but the last. */
+function Row({
+  children,
+  last,
+  interactive,
+  danger,
+  block,
+  onClick,
 }: {
-  options: ReadonlyArray<{ label: string; active: boolean; onSelect: () => void }>
+  children: React.ReactNode
+  last?: boolean
+  interactive?: boolean
+  danger?: boolean
+  block?: boolean
+  onClick?: () => void
 }) {
   return (
-    <div className="seg" role="group">
-      {options.map((o) => (
-        <button
-          key={o.label}
-          className={`seg__opt${o.active ? ' seg__opt--active' : ''}`}
-          onClick={o.onSelect}
-          aria-pressed={o.active}
-        >
-          {o.label}
-        </button>
-      ))}
+    <div
+      className={`body-compact-01${interactive ? ' hoverable' : ''}`}
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        flexDirection: block ? 'column' : 'row',
+        alignItems: block ? 'stretch' : 'center',
+        justifyContent: 'space-between',
+        gap: 'var(--spacing-05)',
+        padding: 'var(--spacing-04) var(--spacing-05)',
+        borderBottom: last ? undefined : '1px solid var(--border-subtle-01)',
+        color: danger ? 'var(--text-error)' : 'var(--text-primary)',
+        cursor: interactive ? 'pointer' : undefined,
+      }}
+    >
+      {children}
     </div>
   )
 }

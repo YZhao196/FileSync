@@ -1,0 +1,26 @@
+/*
+ * BuildNexus patches — gaps in the design system's own remap.
+ *
+ * `buildnexus.css` points most of Primer's variables at Carbon tokens, but the
+ * **disabled** button fills are not among them. A disabled primary button
+ * therefore renders Primer's own green — #95d8a6 on light, #105823 on dark —
+ * instead of Carbon's neutral disabled grey, which reads as "this is a
+ * different, working button" rather than "this action is unavailable".
+ *
+ * A separate file rather than an edit to `buildnexus.css`, so the vendored
+ * stylesheet stays byte-identical to the design system and can be re-copied
+ * without losing the fix. It must load *after* `buildnexus.css`.
+ */
+
+:root,
+[data-theme='light'],
+[data-theme='dark'] {
+  --button-primary-bgColor-disabled: var(--button-disabled);
+  --button-primary-borderColor-disabled: var(--button-disabled);
+  --button-primary-fgColor-disabled: var(--text-on-color-disabled);
+
+  /* Primer reads this for the disabled danger button and the disabled control
+     fill; neither is remapped upstream. */
+  --control-bgColor-disabled: var(--button-disabled);
+  --button-danger-bgColor-disabled: var(--button-disabled);
+}

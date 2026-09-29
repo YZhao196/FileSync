@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { Button, FormControl, TextInput } from '@primer/react'
 import { pickFolder } from '../native/bridge'
-import { IconBadge } from './Icon'
+import { carbonIcon, IconBadge } from './Icon'
 
 /**
  * "Where are your photos?" — the step after choosing to hand a module to the
@@ -38,40 +39,47 @@ export function FolderPicker({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 20,
-        background: 'var(--surf2)',
-        padding: 40,
+        gap: 'var(--spacing-06)',
+        background: 'var(--layer-02)',
+        padding: 'var(--spacing-07)',
       }}
     >
       <IconBadge name="folder" size={26} />
 
-      <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--tx)' }}>{title}</div>
-        <div style={{ fontSize: 13, color: 'var(--tx2)', maxWidth: 320, lineHeight: 1.5 }}>{body}</div>
+      <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-03)' }}>
+        <div className="heading-compact-02" style={{ color: 'var(--text-primary)' }}>{title}</div>
+        <div className="body-compact-01" style={{ color: 'var(--text-secondary)', maxWidth: 320 }}>{body}</div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 360 }}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            className="input"
-            style={{ flex: 1 }}
-            value={path}
-            placeholder={placeholder}
-            onChange={(e) => setPath(e.target.value)}
-            aria-label={title}
-          />
-          <button className="btn" onClick={browse} style={{ whiteSpace: 'nowrap' }}>
+      {/* The label is visual-hidden because the step's own heading already names
+          the field on screen; it stays as the input's accessible name. */}
+      <FormControl
+        id="folder-picker-path"
+        style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-03)', width: 360 }}
+      >
+        <FormControl.Label htmlFor="folder-picker-path" visuallyHidden>{title}</FormControl.Label>
+        <div style={{ display: 'flex', gap: 'var(--spacing-03)' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <TextInput
+              id="folder-picker-path"
+              block
+              value={path}
+              placeholder={placeholder}
+              onChange={(e) => setPath(e.target.value)}
+            />
+          </div>
+          <Button onClick={browse}>
             Browse…
-          </button>
+          </Button>
         </div>
-        <button className="btn btn--primary" onClick={() => onConfirm(path)} style={{ padding: '11px 20px' }}>
-          Confirm folder →
-        </button>
-      </div>
+        <Button variant="primary" block onClick={() => onConfirm(path)}>
+          Confirm folder
+        </Button>
+      </FormControl>
 
-      <button className="btn--link" onClick={onBack} style={{ fontSize: 12, color: 'var(--txm)' }}>
-        ← Back
-      </button>
+      <Button variant="link" size="small" leadingVisual={carbonIcon('back')} onClick={onBack}>
+        Back
+      </Button>
     </div>
   )
 }

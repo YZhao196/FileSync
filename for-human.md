@@ -242,7 +242,6 @@ Photos. A 403 there is the §6 permission, not a code bug.
 | **Replace an existing server** | Documents its flow, does not run it. The last large piece — see §5 |
 | **Mobile app** | The design prototype covers mobile; only desktop is built. A separate React Native codebase (PLAN.md §11) |
 | **Code signing, notarisation, installer, auto-update** | See §1 |
-| **On-disk thumbnail cache** | The cache is per-session, in memory. A restart starts cold, so it cannot make a first load faster. PLAN.md §11 wants it on disk per device |
 | **Timeline paging** | `list()` fetches page 1 (100 items). There is no infinite scroll — a library larger than that shows the newest 100 |
 | **People, Places, a map** | Deliberately removed. Immich's own web UI already groups faces and shows locations, so the app was duplicating software you already run. The screens, their nav entries, the `/api/people` and EXIF-place calls, and their tests all came out — the photo section is Timeline and Albums, and nothing is left half-wired. Bringing them back means rewriting them |
 | **Albums: create, delete, cover images** | Viewing and adding to albums works. Creating one is Immich's job. Covers are server gradients, not the first photo |

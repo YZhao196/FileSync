@@ -102,33 +102,48 @@ function ViewerBody({
       style={{
         position: 'absolute',
         inset: 0,
-        background: 'rgba(9,9,12,0.96)',
+        background: 'var(--background-inverse)',
         zIndex: 50,
         display: 'flex',
         flexDirection: 'column',
         animation: 'fadeInFast 150ms ease',
       }}
     >
-      <div style={{ height: 50, display: 'flex', alignItems: 'center', padding: '0 20px', flexShrink: 0, gap: 14 }}>
-        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }} className="mono">
+      <div
+        style={{
+          height: 50,
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 var(--spacing-05)',
+          flexShrink: 0,
+          gap: 'var(--spacing-05)',
+        }}
+      >
+        <span className="code-01" style={{ color: 'var(--text-inverse)' }}>
           {photo.name}
         </span>
-        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+        <span className="label-01" style={{ color: 'var(--text-inverse)', opacity: 0.7 }}>
           {photo.takenAt ? new Date(photo.takenAt).toLocaleDateString() : ''}
         </span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
+        <div
+          style={{
+            marginLeft: 'auto',
+            display: 'flex',
+            gap: 'var(--spacing-03)',
+            alignItems: 'center',
+          }}
+        >
+          <span className="label-01" style={{ color: 'var(--text-inverse)', opacity: 0.7 }}>
             {index + 1} / {total}
           </span>
           <button
             onClick={onClose}
             aria-label="Close viewer"
             style={{
-              background: 'rgba(255,255,255,0.1)',
-              color: '#fff',
-              fontSize: 15,
-              padding: '5px 11px',
-              borderRadius: 3,
+              background: 'var(--background-inverse-hover)',
+              color: 'var(--icon-inverse)',
+              padding: 'var(--spacing-02) var(--spacing-03)',
+              borderRadius: 'var(--border-radius-small)',
             }}
           >
             <Icon name="close" size={14} />
@@ -136,7 +151,7 @@ function ViewerBody({
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--spacing-05)' }}>
         <NavButton label="‹" disabled={index === 0} onClick={() => onIndex(index - 1)} />
         <div
           onClick={() => setZoomed((z) => !z)}
@@ -147,7 +162,7 @@ function ViewerBody({
             height: zoomed ? '76vh' : 420,
             maxWidth: '86vw',
             maxHeight: '76vh',
-            borderRadius: 4,
+            borderRadius: 'var(--border-radius-small)',
             overflow: 'hidden',
             cursor: 'zoom-in',
             transition: 'width 140ms ease, height 140ms ease',
@@ -177,7 +192,7 @@ function ViewerBody({
           display: readOnly ? 'none' : 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 32,
+          gap: 'var(--spacing-07)',
           flexShrink: 0,
           flexWrap: 'wrap',
         }}
@@ -186,12 +201,13 @@ function ViewerBody({
           <button
             key={action.id}
             onClick={() => onAction(action.id, photo)}
+            className="body-compact-01"
             style={{
-              color: 'rgba(255,255,255,0.65)',
-              fontSize: 13,
+              color: 'var(--text-inverse)',
+              opacity: 0.75,
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 6,
+              gap: 'var(--spacing-02)',
             }}
           >
             {action.label}
@@ -200,18 +216,23 @@ function ViewerBody({
         <button
           onClick={() => onAction('favourite', photo)}
           aria-pressed={photo.isFavourite}
+          className="body-compact-01"
           style={{
-            color: photo.isFavourite ? '#ffc857' : 'rgba(255,255,255,0.65)',
-            fontSize: 13,
+            color: photo.isFavourite ? 'var(--support-warning)' : 'var(--text-inverse)',
+            opacity: photo.isFavourite ? 1 : 0.75,
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 6,
+            gap: 'var(--spacing-02)',
           }}
         >
           <Icon name="star" size={13} filled={photo.isFavourite} />
           {photo.isFavourite ? 'Favourited' : 'Favourite'}
         </button>
-        <button onClick={() => onAction('delete', photo)} style={{ color: '#ff7168', fontSize: 13 }}>
+        <button
+          onClick={() => onAction('delete', photo)}
+          className="body-compact-01"
+          style={{ color: 'var(--support-error-inverse)' }}
+        >
           Delete
         </button>
       </div>
@@ -233,13 +254,14 @@ function NavButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label === '‹' ? 'Previous photo' : 'Next photo'}
+      className="heading-03"
       style={{
-        background: 'rgba(255,255,255,0.08)',
-        borderRadius: '50%',
+        background: 'var(--background-inverse-hover)',
+        borderRadius: 'var(--border-radius-full)',
         width: 44,
         height: 44,
-        fontSize: 24,
-        color: disabled ? 'rgba(255,255,255,0.2)' : '#fff',
+        color: 'var(--text-inverse)',
+        opacity: disabled ? 0.3 : 1,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

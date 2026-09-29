@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Breadcrumbs, Button } from '@primer/react'
+import { Blankslate } from '@primer/react/experimental'
 import { ChoiceScreen } from '../../components/ChoiceScreen'
 import { ConfirmDialog, PromptDialog } from '../../components/Dialogs'
 import { FolderPicker } from '../../components/FolderPicker'
-import { Icon, IconBadge, type IconName } from '../../components/Icon'
+import { Icon, IconBadge, carbonIcon, type IconName } from '../../components/Icon'
 import { useToast } from '../../components/Toaster'
 import type { FileEntry, TreeNode } from '../../core/types'
 import { useAsync } from '../../hooks/useAsync'
@@ -93,49 +95,56 @@ function NativeFolder({ path, onChange, onReset }: { path: string; onChange: () 
   const { isHost } = useApp()
 
   return (
-    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surf2)' }}>
+    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--layer-02)' }}>
       <div
         style={{
           width: 380,
-          background: 'var(--surf)',
-          border: '1px solid var(--bd)',
-          borderRadius: 12,
-          padding: 26,
+          background: 'var(--layer-01)',
+          border: '1px solid var(--border-subtle-01)',
+          borderRadius: 'var(--border-radius-large)',
+          padding: 'var(--spacing-06)',
           display: 'flex',
           flexDirection: 'column',
-          gap: 14,
-          boxShadow: 'var(--shadow-raised)',
+          gap: 'var(--spacing-05)',
         }}
       >
         <IconBadge name="folder" size={26} />
-        <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--tx)' }}>
+        <div className="heading-compact-02" style={{ color: 'var(--text-primary)' }}>
           {`Files open in ${FILE_MANAGER}`}
         </div>
-        <div style={{ fontSize: 13, color: 'var(--tx2)', lineHeight: 1.55 }}>
+        <div className="body-compact-01" style={{ color: 'var(--text-secondary)' }}>
           The Nextcloud client keeps this folder in sync; FileSynapse simply hands it to the OS.
         </div>
-        <code style={{ fontSize: 12, color: 'var(--tx2)', background: 'var(--surf2)', padding: '6px 10px', borderRadius: 6 }}>
+        <code
+          className="code-01"
+          style={{
+            color: 'var(--text-secondary)',
+            background: 'var(--layer-02)',
+            padding: 'var(--spacing-03) var(--spacing-04)',
+            borderRadius: 'var(--border-radius-medium)',
+          }}
+        >
           {path}
         </code>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button
-            className="btn btn--primary"
+        <div style={{ display: 'flex', gap: 'var(--spacing-03)', flexWrap: 'wrap' }}>
+          <Button
+            variant="primary"
+            trailingVisual={carbonIcon('external')}
             onClick={async () => {
               const ok = await revealInSystem(path)
               if (!ok) show('Opening a folder needs the desktop shell — see for-human.md')
             }}
           >
             {`Open in ${FILE_MANAGER}`}
-            <Icon name="external" size={12} />
-          </button>
+          </Button>
           {isHost && (
-            <button className="btn" onClick={onChange}>
+            <Button onClick={onChange}>
               Change location
-            </button>
+            </Button>
           )}
-          <button className="btn" onClick={onReset}>
+          <Button onClick={onReset}>
             Use in-app browser
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -233,56 +242,57 @@ function Browser({ onReset }: { onReset: () => void }) {
       <div
         style={{
           height: 40,
-          borderBottom: '1px solid var(--bd)',
+          borderBottom: '1px solid var(--border-subtle-01)',
           display: 'flex',
           alignItems: 'center',
-          padding: '0 12px',
-          gap: 7,
+          padding: '0 var(--spacing-04)',
+          gap: 'var(--spacing-03)',
           flexShrink: 0,
         }}
       >
-        <button className="btn btn--sm" disabled={busy} onClick={() => setDialog({ kind: 'newFolder' })}>
-          + New folder
-        </button>
-        <button
-          className="btn btn--sm"
+        <Button size="small" leadingVisual={carbonIcon('add')} disabled={busy} onClick={() => setDialog({ kind: 'newFolder' })}>
+          New folder
+        </Button>
+        <Button
+          size="small"
           disabled={!selected || busy}
           onClick={() => selected && setDialog({ kind: 'preview', entry: selected })}
         >
           Preview
-        </button>
-        <button
-          className="btn btn--sm"
+        </Button>
+        <Button
+          size="small"
+          leadingVisual={carbonIcon('download')}
           disabled={!selected || selected.isFolder || busy}
           onClick={() => selected && download(selected)}
         >
-          <Icon name="download" size={12} />
           Download
-        </button>
-        <button
-          className="btn btn--sm"
+        </Button>
+        <Button
+          size="small"
           disabled={!selected || busy}
           onClick={() => selected && setDialog({ kind: 'rename', entry: selected })}
         >
           Rename
-        </button>
-        <button
-          className="btn btn--sm"
+        </Button>
+        <Button
+          size="small"
+          variant="danger"
           disabled={!selected || busy}
           onClick={() => selected && setDialog({ kind: 'delete', entry: selected })}
-          style={{ color: 'var(--danger)' }}
         >
           Delete
-        </button>
+        </Button>
 
         <div style={{ flex: 1 }} />
 
         {/* Uploading belongs to Nextcloud: background sync, conflict handling
             and resume are the hard parts, and they are solved there. This hands
             the folder over rather than growing a second uploader. */}
-        <button
-          className="btn--link"
-          style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+        <Button
+          variant="link"
+          size="small"
+          trailingVisual={carbonIcon('external')}
           onClick={async () => {
             const base = connection.nextcloudUrl
             if (!base) {
@@ -295,85 +305,86 @@ function Browser({ onReset }: { onReset: () => void }) {
           }}
         >
           Upload in Nextcloud
-          <Icon name="external" size={12} />
-        </button>
-        <button
-          className="btn--link"
-          onClick={onReset}
-          style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
-        >
+        </Button>
+        <Button variant="link" size="small" trailingVisual={carbonIcon('refresh')} onClick={onReset}>
           Change source
-          <Icon name="refresh" size={12} />
-        </button>
+        </Button>
       </div>
 
       <div
         style={{
           height: 30,
-          borderBottom: '1px solid var(--bd)',
+          borderBottom: '1px solid var(--border-subtle-01)',
           display: 'flex',
           alignItems: 'center',
-          padding: '0 12px',
-          gap: 4,
+          padding: '0 var(--spacing-04)',
           flexShrink: 0,
-          fontSize: 12,
         }}
       >
-        <button className="btn--link" style={{ fontSize: 12 }} onClick={() => enter('/')}>
-          {connection.address ? 'Nextcloud' : 'root'}
-        </button>
-        {crumbs.map((c, i) => {
-          const path = `/${crumbs.slice(0, i + 1).join('/')}`
-          return (
-            <span key={path} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ color: 'var(--txd)' }}>›</span>
-              <button className="btn--link" style={{ fontSize: 12 }} onClick={() => enter(path)}>
+        <Breadcrumbs>
+          <Breadcrumbs.Item as="button" selected={crumbs.length === 0} onClick={() => enter('/')}>
+            {connection.address ? 'Nextcloud' : 'root'}
+          </Breadcrumbs.Item>
+          {crumbs.map((c, i) => {
+            const path = `/${crumbs.slice(0, i + 1).join('/')}`
+            return (
+              <Breadcrumbs.Item key={path} as="button" selected={i === crumbs.length - 1} onClick={() => enter(path)}>
                 {c}
-              </button>
-            </span>
-          )
-        })}
+              </Breadcrumbs.Item>
+            )
+          })}
+        </Breadcrumbs>
       </div>
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <div style={{ width: 240, borderRight: '1px solid var(--bd)', overflowY: 'auto', padding: '6px 0' }} aria-label="Folders">
+        {/* Kept as the app's own tree rather than Primer's TreeView: TreeView
+            imposes its own keyboard model (roving tabindex, arrow-key and
+            typeahead navigation) and takes nested SubTree children, so adopting
+            it would replace this component's per-row Tab focus and Enter
+            handling and rebuild the flat depth list `flatten` produces. Both are
+            behaviour changes the migration brief rules out, so it is restyled
+            from the Carbon tokens instead. */}
+        <div style={{ width: 240, borderRight: '1px solid var(--border-subtle-01)', overflowY: 'auto', padding: 'var(--spacing-02) 0' }} aria-label="Folders">
           {rows.length === 0 ? (
-            <div style={{ padding: 12, color: 'var(--txm)', fontSize: 12 }}>Loading…</div>
+            <div className="body-compact-01" style={{ padding: 'var(--spacing-04)', color: 'var(--text-helper)' }}>Loading…</div>
           ) : (
-            rows.map((node) => (
-              <div
-                key={node.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  if (node.hasChildren) toggle(node.path)
-                  if (node.isFolder) enter(node.path)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && node.isFolder) enter(node.path)
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '4px 8px',
-                  paddingLeft: 8 + node.depth * 14,
-                  borderRadius: 3,
-                  cursor: 'pointer',
-                  background: currentPath === node.path ? 'var(--accbg)' : 'transparent',
-                  color: currentPath === node.path ? 'var(--acc)' : 'var(--tx)',
-                  fontSize: 13,
-                }}
-              >
-                <span style={{ width: 10, textAlign: 'center', fontSize: 10, color: 'var(--txd)' }}>
-                  {node.hasChildren ? (node.expanded ? '▾' : '▸') : ''}
-                </span>
-                <Icon name={node.isFolder ? 'folder' : 'file'} size={13} style={{ color: 'var(--txm)' }} />
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {node.name}
-                </span>
-              </div>
-            ))
+            rows.map((node) => {
+              const current = currentPath === node.path
+              return (
+                <div
+                  key={node.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    if (node.hasChildren) toggle(node.path)
+                    if (node.isFolder) enter(node.path)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && node.isFolder) enter(node.path)
+                  }}
+                  className="body-compact-01"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--spacing-02)',
+                    padding: 'var(--spacing-02) var(--spacing-03)',
+                    paddingLeft: `calc(var(--spacing-03) + ${node.depth} * var(--spacing-04))`,
+                    borderRadius: 'var(--border-radius-small)',
+                    cursor: 'pointer',
+                    background: current ? 'var(--layer-selected-01)' : 'transparent',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  <span className="label-01" style={{ width: 10, textAlign: 'center', color: 'var(--icon-secondary)' }}>
+                    {node.hasChildren ? (node.expanded ? '▾' : '▸') : ''}
+                  </span>
+                  <Icon name={node.isFolder ? 'folder' : 'file'} size={16} style={{ color: 'var(--icon-secondary)' }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {node.name}
+                  </span>
+                </div>
+              )
+            })
           )}
         </div>
 
@@ -382,72 +393,83 @@ function Browser({ onReset }: { onReset: () => void }) {
             style={{
               display: 'grid',
               gridTemplateColumns: 'minmax(150px, 1fr) 70px 92px 84px',
-              padding: '6px 14px',
-              background: 'var(--surf2)',
-              borderBottom: '1px solid var(--bd)',
+              padding: 'var(--spacing-02) var(--spacing-05)',
+              background: 'var(--layer-02)',
+              borderBottom: '1px solid var(--border-subtle-01)',
               position: 'sticky',
               top: 0,
             }}
           >
             {['Name', 'Size', 'Type', 'Modified'].map((h) => (
-              <span key={h} style={{ fontSize: 11, fontWeight: 600, color: 'var(--tx2)' }}>
+              <span key={h} className="label-01" style={{ color: 'var(--text-secondary)' }}>
                 {h}
               </span>
             ))}
           </div>
 
           {entriesLoading ? (
-            <div style={{ padding: 14, color: 'var(--txm)', fontSize: 13 }}>Loading…</div>
+            <div className="body-compact-01" style={{ padding: 'var(--spacing-05)', color: 'var(--text-helper)' }}>Loading…</div>
           ) : !entries?.length ? (
-            <div style={{ padding: 14, color: 'var(--txm)', fontSize: 13 }}>This folder is empty.</div>
+            <Blankslate size="small" narrow>
+              <Blankslate.Visual>
+                <Icon name="folder" size={24} />
+              </Blankslate.Visual>
+              <Blankslate.Heading>This folder is empty</Blankslate.Heading>
+              <Blankslate.Description>
+                Use New folder above to create one, or add files in Nextcloud and they will appear here.
+              </Blankslate.Description>
+            </Blankslate>
           ) : (
-            entries.map((f) => (
-              <div
-                key={f.path}
-                role="button"
-                tabIndex={0}
-                aria-selected={selected?.path === f.path}
-                // Click selects, double-click opens — the model Explorer and
-                // Finder both use. Selecting on click is what makes Rename and
-                // Delete reachable for a folder; opening on single click would
-                // leave no way to act on one at all.
-                onClick={() => setSelected(f)}
-                onDoubleClick={() => open(f)}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter') return
-                  if (f.isFolder) enter(f.path)
-                  else setDialog({ kind: 'preview', entry: f })
-                }}
-                className="hoverable"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(150px, 1fr) 70px 92px 84px',
-                  padding: '7px 14px',
-                  borderBottom: '1px solid var(--bd)',
-                  cursor: 'pointer',
-                  alignItems: 'center',
-                  background: selected?.path === f.path ? 'var(--accbg)' : undefined,
-                }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
-                  <Icon name={iconFor(f.name, f.isFolder)} size={15} style={{ color: 'var(--txm)' }} />
-                  <span
-                    style={{
-                      fontSize: 13,
-                      color: selected?.path === f.path ? 'var(--acc)' : 'var(--tx)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {f.name}
+            entries.map((f) => {
+              const isSelected = selected?.path === f.path
+              return (
+                <div
+                  key={f.path}
+                  role="button"
+                  tabIndex={0}
+                  aria-selected={isSelected}
+                  // Click selects, double-click opens — the model Explorer and
+                  // Finder both use. Selecting on click is what makes Rename and
+                  // Delete reachable for a folder; opening on single click would
+                  // leave no way to act on one at all.
+                  onClick={() => setSelected(f)}
+                  onDoubleClick={() => open(f)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return
+                    if (f.isFolder) enter(f.path)
+                    else setDialog({ kind: 'preview', entry: f })
+                  }}
+                  className="hoverable"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(150px, 1fr) 70px 92px 84px',
+                    padding: 'var(--spacing-03) var(--spacing-05)',
+                    borderBottom: '1px solid var(--border-subtle-01)',
+                    cursor: 'pointer',
+                    alignItems: 'center',
+                    background: isSelected ? 'var(--layer-selected-01)' : undefined,
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-03)', overflow: 'hidden' }}>
+                    <Icon name={iconFor(f.name, f.isFolder)} size={16} style={{ color: 'var(--icon-secondary)' }} />
+                    <span
+                      className="body-compact-01"
+                      style={{
+                        color: 'var(--text-primary)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {f.name}
+                    </span>
                   </span>
-                </span>
-                <span style={{ fontSize: 13, color: 'var(--tx2)' }}>{f.sizeLabel}</span>
-                <span style={{ fontSize: 13, color: 'var(--tx2)' }}>{f.typeLabel}</span>
-                <span style={{ fontSize: 13, color: 'var(--tx2)' }}>{f.modifiedLabel}</span>
-              </div>
-            ))
+                  <span className="body-compact-01" style={{ color: 'var(--text-secondary)' }}>{f.sizeLabel}</span>
+                  <span className="body-compact-01" style={{ color: 'var(--text-secondary)' }}>{f.typeLabel}</span>
+                  <span className="body-compact-01" style={{ color: 'var(--text-secondary)' }}>{f.modifiedLabel}</span>
+                </div>
+              )
+            })
           )}
         </div>
       </div>

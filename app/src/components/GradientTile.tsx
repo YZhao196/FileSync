@@ -54,7 +54,7 @@ export function GradientTile({
         position: 'relative',
         overflow: 'hidden',
         cursor: onClick ? 'pointer' : 'default',
-        borderRadius: 2,
+        borderRadius: 'var(--border-radius-small)',
         background: `linear-gradient(145deg, ${gradient[0]}, ${gradient[1]})`,
         ...style,
       }}
@@ -85,15 +85,18 @@ export function GradientTile({
             position: 'absolute',
             bottom: 4,
             left: 4,
-            background: 'rgba(0,0,0,0.55)',
-            color: '#fff',
-            borderRadius: '50%',
+            // These badges sit on top of arbitrary photo content, so they need a
+            // pairing that stays dark-on-light whatever the theme: the overlay
+            // scrim under a white on-color icon, not `background-inverse` (which
+            // flips to a light surface in the dark theme).
+            background: 'var(--overlay)',
+            color: 'var(--icon-on-color)',
+            borderRadius: 'var(--border-radius-full)',
             width: 20,
             height: 20,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 8,
           }}
           aria-label="Video"
         >
@@ -107,9 +110,7 @@ export function GradientTile({
             position: 'absolute',
             top: 4,
             right: 4,
-            color: '#fff',
-            fontSize: 13,
-            textShadow: '0 1px 3px rgba(0,0,0,0.6)',
+            color: 'var(--icon-on-color)',
           }}
           aria-label="Favourite"
         >
@@ -117,14 +118,20 @@ export function GradientTile({
             name="star"
             size={16}
             filled
-            style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.65))' }}
+            style={{ filter: 'drop-shadow(0 1px 2px var(--shadow))' }}
           />
         </span>
       )}
 
       {selected && (
         <>
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(12,102,228,0.25)' }} />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'color-mix(in srgb, var(--background-brand) 25%, transparent)',
+            }}
+          />
           <div
             style={{
               position: 'absolute',
@@ -132,13 +139,12 @@ export function GradientTile({
               right: 4,
               width: 20,
               height: 20,
-              background: 'var(--acc)',
-              borderRadius: '50%',
+              background: 'var(--background-brand)',
+              borderRadius: 'var(--border-radius-full)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 11,
-              color: '#fff',
+              color: 'var(--icon-on-color)',
             }}
           >
             <Icon name="check" size={16} />

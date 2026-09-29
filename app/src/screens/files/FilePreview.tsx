@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { Button, Text } from '@primer/react'
 import { Modal } from '../../components/Dialogs'
-import { Icon } from '../../components/Icon'
+import { Icon, carbonIcon } from '../../components/Icon'
 import type { FileBackend } from '../../core/backends'
 import type { FileEntry } from '../../core/types'
 
@@ -69,13 +70,13 @@ export function FilePreview({
           minHeight: 200,
           maxHeight: '52vh',
           overflow: 'auto',
-          background: 'var(--surf2)',
-          border: '1px solid var(--bd)',
-          borderRadius: 8,
+          background: 'var(--layer-02)',
+          border: '1px solid var(--border-subtle-01)',
+          borderRadius: 'var(--border-radius-medium)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: isText ? 12 : 0,
+          padding: isText ? 'var(--spacing-03)' : 0,
         }}
       >
         {state === 'loading' && <Note text="Loading…" />}
@@ -94,10 +95,9 @@ export function FilePreview({
         )}
         {state === 'ready' && isText && text !== null && (
           <pre
-            className="mono"
+            className="code-02"
             style={{
-              fontSize: 12,
-              color: 'var(--tx)',
+              color: 'var(--text-primary)',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               margin: 0,
@@ -111,22 +111,21 @@ export function FilePreview({
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--txm)', flexWrap: 'wrap' }}>
-        <span>{entry.typeLabel}</span>
-        {!entry.isFolder && <span>{entry.sizeLabel}</span>}
-        <span>Modified {entry.modifiedLabel}</span>
-        <span className="mono">{entry.path}</span>
+      <div className="label-01" style={{ display: 'flex', gap: 'var(--spacing-05)', color: 'var(--text-helper)', flexWrap: 'wrap' }}>
+        <Text>{entry.typeLabel}</Text>
+        {!entry.isFolder && <Text>{entry.sizeLabel}</Text>}
+        <Text>Modified {entry.modifiedLabel}</Text>
+        <Text className="code-01">{entry.path}</Text>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <button className="btn" onClick={onClose}>
+      <div style={{ display: 'flex', gap: 'var(--spacing-03)', justifyContent: 'flex-end' }}>
+        <Button onClick={onClose}>
           Close
-        </button>
+        </Button>
         {!entry.isFolder && (
-          <button className="btn btn--primary" onClick={onDownload}>
-            <Icon name="download" size={12} />
+          <Button variant="primary" leadingVisual={carbonIcon('download')} onClick={onDownload}>
             Download
-          </button>
+          </Button>
         )}
       </div>
     </Modal>
@@ -135,7 +134,21 @@ export function FilePreview({
 
 function Note({ text, danger }: { text: string; danger?: boolean }) {
   return (
-    <div style={{ padding: 24, fontSize: 13, color: danger ? 'var(--danger)' : 'var(--txm)', textAlign: 'center' }}>
+    <div
+      className="body-compact-01"
+      style={{
+        padding: 'var(--spacing-06)',
+        color: danger ? 'var(--support-error)' : 'var(--text-helper)',
+        textAlign: 'center',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 'var(--spacing-03)',
+      }}
+    >
+      {/* Status colour carries a word here; the icon sits with it so the hue is
+          never the only thing marking the state. */}
+      {danger && <Icon name="alert" size={20} />}
       {text}
     </div>
   )

@@ -1,4 +1,5 @@
-import { Icon } from '../../components/Icon'
+import { Button } from '@primer/react'
+import { carbonIcon } from '../../components/Icon'
 import { useAsync } from '../../hooks/useAsync'
 import { useApp } from '../../state/store'
 import { PhotoCollection } from './PhotoCollection'
@@ -21,10 +22,19 @@ export function AlbumDetail() {
 
   if (!albumId) {
     return (
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <button className="btn" onClick={() => go('albums')}>
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--background)',
+        }}
+      >
+        <Button variant="default" onClick={() => go('albums')}>
           Back to albums
-        </button>
+        </Button>
       </div>
     )
   }
@@ -37,14 +47,14 @@ export function AlbumDetail() {
       onChanged={reload}
       empty="This album is empty."
       leading={
-        <button
-          className="btn--link"
+        <Button
+          variant="invisible"
+          size="small"
           onClick={() => go('albums')}
-          style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+          leadingVisual={carbonIcon('back')}
         >
-          <Icon name="back" size={12} />
           {nav.albumName ?? 'Albums'}
-        </button>
+        </Button>
       }
     />
   )

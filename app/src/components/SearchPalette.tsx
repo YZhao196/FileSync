@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { TextInput } from '@primer/react'
 import type { Photo, TreeNode } from '../core/types'
 import { useThumb } from '../hooks/useThumb'
 import { parentOf } from '../lib/paths'
@@ -17,6 +18,13 @@ import { PhotoViewer } from '../screens/photos/PhotoViewer'
  * about what was searched — the palette says so in the footer when it applies.
  *
  * Debounced, so typing does not put a request on the wire per keystroke.
+ *
+ * The results list stays hand-rolled rather than an `ActionList`. The palette's
+ * keyboard model is input-first: focus never leaves the field, Enter opens the
+ * first file match, and Escape closes. `ActionList` brings its own focus zone
+ * and roving tab order, and its leading/trailing visual slots size their own
+ * contents, which would fight both that model and the 30px thumbnails here. The
+ * field itself is Primer `TextInput`; everything else is on the tokens.
  */
 export function SearchPalette() {
   const { searchOpen, setSearchOpen, backends, go } = useApp()
@@ -150,7 +158,7 @@ export function SearchPalette() {
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(9,9,12,0.35)',
+          background: 'var(--overlay)',
           zIndex: 130,
           display: 'flex',
           alignItems: 'flex-start',
@@ -167,22 +175,29 @@ export function SearchPalette() {
             width: 560,
             maxWidth: '92vw',
             maxHeight: '66vh',
-            background: 'var(--surf)',
-            border: '1px solid var(--bd)',
-            borderRadius: 12,
-            boxShadow: 'var(--shadow-raised)',
+            background: 'var(--layer-01)',
+            border: '1px solid var(--border-subtle-01)',
+            borderRadius: 'var(--border-radius-large)',
+            boxShadow: 'var(--shadow-overlay)',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
             animation: 'fadeInFast 120ms ease',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', borderBottom: '1px solid var(--bd)' }}>
-            <Icon name="search" size={14} style={{ color: 'var(--txm)' }} />
-            <input
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--spacing-03)',
+              padding: 'var(--spacing-04) var(--spacing-05)',
+              borderBottom: '1px solid var(--border-subtle-01)',
+            }}
+          >
+            <TextInput
               ref={inputRef}
-              className="input"
-              style={{ border: 'none', background: 'transparent', padding: 0, fontSize: 14 }}
+              block
+              leadingVisual={<Icon name="search" size={16} />}
               placeholder="Search photos and files…"
               value={query}
               aria-label="Search photos and files"
@@ -193,7 +208,14 @@ export function SearchPalette() {
                 }
               }}
             />
-            {searching && <span style={{ fontSize: 11, color: 'var(--txm)' }}>searching…</span>}
+            {searching && (
+              <span
+                className="helper-text-01"
+                style={{ color: 'var(--text-helper)', whiteSpace: 'nowrap' }}
+              >
+                Searching…
+              </span>
+            )}
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -224,15 +246,24 @@ export function SearchPalette() {
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 10,
+                      gap: 'var(--spacing-04)',
                       width: '100%',
-                      padding: '8px 14px',
+                      padding: 'var(--spacing-03) var(--spacing-05)',
                       textAlign: 'left',
                     }}
                   >
-                    <Icon name={f.isFolder ? 'folder' : 'file'} size={14} style={{ color: 'var(--txm)' }} />
-                    <span style={{ flex: 1, fontSize: 13, color: 'var(--tx)' }}>{f.name}</span>
-                    <span className="mono" style={{ fontSize: 11, color: 'var(--txd)' }}>
+                    <Icon
+                      name={f.isFolder ? 'folder' : 'file'}
+                      size={16}
+                      style={{ color: 'var(--icon-secondary)' }}
+                    />
+                    <span
+                      className="body-compact-01"
+                      style={{ flex: 1, color: 'var(--text-primary)' }}
+                    >
+                      {f.name}
+                    </span>
+                    <span className="code-01" style={{ color: 'var(--text-helper)' }}>
                       {parentOf(f.path) || '/'}
                     </span>
                   </button>
@@ -242,14 +273,14 @@ export function SearchPalette() {
           </div>
 
           <div
+            className="helper-text-01"
             style={{
-              padding: '7px 14px',
-              borderTop: '1px solid var(--bd)',
-              fontSize: 11,
-              color: 'var(--txm)',
+              padding: 'var(--spacing-02) var(--spacing-05)',
+              borderTop: '1px solid var(--border-subtle-01)',
+              color: 'var(--text-helper)',
               display: 'flex',
               justifyContent: 'space-between',
-              gap: 12,
+              gap: 'var(--spacing-04)',
             }}
           >
             <span>Files are matched by name from the loaded folder list</span>
@@ -264,13 +295,10 @@ export function SearchPalette() {
 function Section({ label }: { label: string }) {
   return (
     <div
+      className="label-01"
       style={{
-        padding: '8px 14px 4px',
-        fontSize: 10,
-        fontWeight: 700,
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase',
-        color: 'var(--txm)',
+        padding: 'var(--spacing-03) var(--spacing-05) var(--spacing-02)',
+        color: 'var(--text-secondary)',
       }}
     >
       {label}
@@ -280,7 +308,14 @@ function Section({ label }: { label: string }) {
 
 function Hint({ text, danger }: { text: string; danger?: boolean }) {
   return (
-    <div style={{ padding: 22, fontSize: 13, color: danger ? 'var(--danger)' : 'var(--txm)', textAlign: 'center' }}>
+    <div
+      className="body-01"
+      style={{
+        padding: 'var(--spacing-06)',
+        color: danger ? 'var(--text-error)' : 'var(--text-helper)',
+        textAlign: 'center',
+      }}
+    >
       {text}
     </div>
   )
@@ -301,14 +336,21 @@ function PhotoRow({
     <button
       className="hoverable"
       onClick={onOpen}
-      style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '6px 14px', textAlign: 'left' }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--spacing-04)',
+        width: '100%',
+        padding: 'var(--spacing-03) var(--spacing-05)',
+        textAlign: 'left',
+      }}
     >
       <span
         aria-hidden="true"
         style={{
           width: 30,
           height: 30,
-          borderRadius: 5,
+          borderRadius: 'var(--border-radius-small)',
           flexShrink: 0,
           background: `linear-gradient(145deg, ${photo.gradient[0]}, ${photo.gradient[1]})`,
           overflow: 'hidden',
@@ -316,11 +358,24 @@ function PhotoRow({
       >
         {src && <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
       </span>
-      <span style={{ flex: 1, fontSize: 13, color: 'var(--tx)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span
+        className="body-compact-01"
+        style={{
+          flex: 1,
+          color: 'var(--text-primary)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
         {photo.name}
       </span>
-      <span style={{ fontSize: 11, color: 'var(--txd)' }}>{photo.dateGroup}</span>
-      {photo.isFavourite && <Icon name="star" size={11} filled style={{ color: 'var(--warn)' }} />}
+      <span className="helper-text-01" style={{ color: 'var(--text-helper)' }}>
+        {photo.dateGroup}
+      </span>
+      {photo.isFavourite && (
+        <Icon name="star" size={16} filled style={{ color: 'var(--support-warning)' }} />
+      )}
     </button>
   )
 }

@@ -1,9 +1,18 @@
+import { Button, NavList, Stack } from '@primer/react'
 import { useAsync } from '../hooks/useAsync'
 import { formatClock } from '../lib/format'
 import { modShortcut } from '../lib/platform'
 import { useApp, type Screen } from '../state/store'
-import { Icon } from './Icon'
+import { carbonIcon, Icon } from './Icon'
 
+/**
+ * A navigation entry, built on BuildNexus `NavList.Item`.
+ *
+ * Rendered as a real `button` (`as="button"`) because navigation here is a
+ * state change via `go()`, not an address the browser can follow — so the item
+ * keeps the original `role="button"` semantics and its Enter/Space handling,
+ * now provided by the element itself rather than hand-rolled keydown code.
+ */
 function NavItem({
   screen,
   label,
@@ -19,53 +28,23 @@ function NavItem({
   const active = current === screen
 
   return (
-    <div
-      role="button"
-      tabIndex={disabled ? -1 : 0}
+    <NavList.Item
+      as="button"
+      type="button"
       aria-current={active ? 'page' : undefined}
+      disabled={disabled}
       onClick={() => !disabled && go(screen)}
-      onKeyDown={(e) => {
-        if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
-          e.preventDefault()
-          go(screen)
-        }
-      }}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '6px 10px',
-        borderRadius: 6,
-        fontSize: 13,
-        lineHeight: '20px',
-        cursor: disabled ? 'default' : 'pointer',
-        userSelect: 'none',
-        background: active ? 'var(--accbg)' : 'transparent',
-        color: disabled ? 'var(--txd)' : active ? 'var(--acc)' : 'var(--tx)',
-        fontWeight: active ? 600 : 400,
-      }}
     >
-      <span>{label}</span>
-      {trailing}
-    </div>
+      {label}
+      {trailing && <NavList.TrailingVisual>{trailing}</NavList.TrailingVisual>}
+    </NavList.Item>
   )
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: 10,
-        fontWeight: 700,
-        color: 'var(--txm)',
-        letterSpacing: '0.1em',
-        textTransform: 'uppercase',
-        padding: '2px 0 5px',
-      }}
-    >
-      {children}
-    </div>
-  )
+/** The warning mark a "setting up" item carries. Status never relies on colour
+ *  alone, so the glyph sits beside the item's own word. */
+function SetupMark() {
+  return <Icon name="alert" filled size={16} style={{ color: 'var(--support-warning)' }} />
 }
 
 export function Sidebar() {
@@ -82,129 +61,153 @@ export function Sidebar() {
   // to a corner control instead (see LeanCorner).
   if (isLean) return null
 
+  const tailscaleUp = status?.network.tailscaleConnected ?? false
+  const immichRunning = immich?.state === 'running'
+
   return (
-    <nav
-      aria-label="Sections"
+    <div
       style={{
         width: 224,
-        borderRight: '1px solid var(--bd)',
+        borderRight: '1px solid var(--border-subtle-01)',
         display: 'flex',
         flexDirection: 'column',
         flexShrink: 0,
         overflowY: 'auto',
-        background: 'var(--surf)',
+        background: 'var(--layer-01)',
       }}
     >
       {photoMode === 'inapp' && (
-        <div style={{ padding: '12px 12px 6px' }}>
-          <button
+        <div style={{ padding: 'var(--spacing-03)' }}>
+          <Button
+            block
+            variant="default"
+            alignContent="start"
+            leadingVisual={carbonIcon('search')}
+            trailingVisual={
+              <kbd className="label-01" style={{ color: 'var(--text-placeholder)' }}>
+                {modShortcut('K')}
+              </kbd>
+            }
             onClick={() => setSearchOpen(true)}
             aria-label="Open search"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              background: 'var(--surf2)',
-              border: '1px solid var(--bd)',
-              borderRadius: 8,
-              padding: '6px 10px',
-              gap: 6,
-              width: '100%',
-              cursor: 'pointer',
-            }}
           >
-            <Icon name="search" size={12} style={{ color: 'var(--txm)' }} />
-            <span style={{ flex: 1, fontSize: 13, color: 'var(--txm)', textAlign: 'left' }}>Search…</span>
-            <kbd style={{ fontSize: 9, color: 'var(--txd)', padding: '2px 5px', whiteSpace: 'nowrap' }}>
-              {modShortcut('K')}
-            </kbd>
-          </button>
+            Search
+          </Button>
         </div>
       )}
 
-      {showPhotoSection && (
-        <div style={{ padding: '6px 12px 2px' }}>
-          <SectionLabel>Photos</SectionLabel>
-          {photoMode === 'choose' && (
-            <NavItem
-              screen="timeline"
-              label="Setting up"
-              trailing={<span style={{ fontSize: 9, color: 'var(--warn)' }}>●</span>}
-            />
-          )}
-          {photoMode === 'inapp' && (
-            <>
-              <NavItem screen="timeline" label="Timeline" />
-              <NavItem screen="albums" label="Albums" />
-            </>
-          )}
-        </div>
-      )}
+      <NavList aria-label="Sections">
+        {showPhotoSection && (
+          <NavList.Group title="Photos" hideDivider>
+            {photoMode === 'choose' && (
+              <NavItem screen="timeline" label="Setting up" trailing={<SetupMark />} />
+            )}
+            {photoMode === 'inapp' && (
+              <>
+                <NavItem screen="timeline" label="Timeline" />
+                <NavItem screen="albums" label="Albums" />
+              </>
+            )}
+          </NavList.Group>
+        )}
 
-      {showFileSection && (
-        <div style={{ padding: '6px 12px 2px' }}>
-          <SectionLabel>Files</SectionLabel>
-          {fileMode === 'choose' && (
-            <NavItem
-              screen="files"
-              label="Setting up"
-              trailing={<span style={{ fontSize: 9, color: 'var(--warn)' }}>●</span>}
-            />
-          )}
-          {fileMode === 'inapp' && <NavItem screen="files" label="Browser" />}
-        </div>
-      )}
+        {showFileSection && (
+          <NavList.Group title="Files" hideDivider>
+            {fileMode === 'choose' && (
+              <NavItem screen="files" label="Setting up" trailing={<SetupMark />} />
+            )}
+            {fileMode === 'inapp' && <NavItem screen="files" label="Browser" />}
+          </NavList.Group>
+        )}
+      </NavList>
 
-      <div style={{ padding: '6px 12px 2px' }}>
-        <SectionLabel>Server</SectionLabel>
+      <div style={{ padding: 'var(--spacing-02) var(--spacing-03) var(--spacing-03)' }}>
         <div
+          className="label-01"
           style={{
-            margin: '4px 0 6px',
-            background: 'var(--surf2)',
-            borderRadius: 6,
-            padding: '10px 12px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 7,
+            color: 'var(--text-secondary)',
+            fontWeight: 600,
+            padding: 'var(--spacing-02) 0',
           }}
         >
-          <div className="row">
-            <span style={{ fontSize: 12, color: 'var(--tx2)' }}>Tailscale</span>
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 500,
-                color: status?.network.tailscaleConnected ? 'var(--ok)' : 'var(--danger)',
-              }}
+          Server
+        </div>
+        <div
+          style={{
+            background: 'var(--layer-02)',
+            borderRadius: 'var(--border-radius-medium)',
+            padding: 'var(--spacing-04)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--spacing-03)',
+          }}
+        >
+          <Stack direction="horizontal" justify="space-between" align="center">
+            <span className="label-01" style={{ color: 'var(--text-secondary)' }}>
+              Tailscale
+            </span>
+            <Stack
+              direction="horizontal"
+              align="center"
+              gap="condensed"
+              style={{ color: tailscaleUp ? 'var(--support-success)' : 'var(--support-error)' }}
             >
-              ● {status?.network.tailscaleConnected ? 'connected' : 'off'}
+              <Icon name={tailscaleUp ? 'check' : 'alert'} filled size={16} />
+              <span className="body-compact-01">{tailscaleUp ? 'connected' : 'off'}</span>
+            </Stack>
+          </Stack>
+
+          <Stack direction="horizontal" justify="space-between" align="center">
+            <span className="label-01" style={{ color: 'var(--text-secondary)' }}>
+              Immich
             </span>
-          </div>
-          <div className="row">
-            <span style={{ fontSize: 12, color: 'var(--tx2)' }}>Immich</span>
-            <span style={{ fontSize: 11, color: immich?.state === 'running' ? 'var(--ok)' : 'var(--txm)' }}>
-              {immich?.state ?? '—'}
+            <Stack
+              direction="horizontal"
+              align="center"
+              gap="condensed"
+              style={immichRunning ? { color: 'var(--support-success)' } : undefined}
+            >
+              {immichRunning && <Icon name="check" filled size={16} />}
+              <span
+                className="body-compact-01"
+                style={immichRunning ? undefined : { color: 'var(--text-secondary)' }}
+              >
+                {immich?.state ?? '—'}
+              </span>
+            </Stack>
+          </Stack>
+
+          <Stack direction="horizontal" justify="space-between" align="center">
+            <span className="label-01" style={{ color: 'var(--text-secondary)' }}>
+              Last backup
             </span>
-          </div>
-          <div className="row">
-            <span style={{ fontSize: 12, color: 'var(--tx2)' }}>Last backup</span>
-            <span style={{ fontSize: 11, color: 'var(--tx)' }}>{formatClock(status?.backup.lastRunAt ?? null)}</span>
-          </div>
-          <div style={{ height: 1, background: 'var(--bd)' }} />
-          <div
-            role="button"
-            tabIndex={0}
+            <span className="body-compact-01">{formatClock(status?.backup.lastRunAt ?? null)}</span>
+          </Stack>
+
+          <div style={{ height: 1, background: 'var(--border-subtle-01)' }} />
+
+          <Button
+            variant="link"
+            size="small"
             onClick={() => go('server')}
-            onKeyDown={(e) => e.key === 'Enter' && go('server')}
-            style={{ fontSize: 12, color: 'var(--acc)', cursor: 'pointer' }}
+            style={{ alignSelf: 'flex-start' }}
           >
-            Full status →
-          </div>
+            View full status
+          </Button>
         </div>
       </div>
 
-      <div style={{ marginTop: 'auto', borderTop: '1px solid var(--bd)', padding: '8px 12px' }}>
-        <NavItem screen="settings" label="Settings" />
+      <div
+        style={{
+          marginTop: 'auto',
+          borderTop: '1px solid var(--border-subtle-01)',
+          padding: 'var(--spacing-03)',
+        }}
+      >
+        <NavList aria-label="Settings">
+          <NavItem screen="settings" label="Settings" />
+        </NavList>
       </div>
-    </nav>
+    </div>
   )
 }

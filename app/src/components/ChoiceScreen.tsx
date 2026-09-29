@@ -9,7 +9,6 @@ export interface Choice {
   actionLabel: React.ReactNode
   onAction: () => void
   primary?: boolean
-  footnote?: React.ReactNode
 }
 
 /**
@@ -63,7 +62,7 @@ function OrDivider() {
   )
 }
 
-function ChoiceCard({ icon, title, body, actionLabel, onAction, primary, footnote }: Choice) {
+function ChoiceCard({ icon, title, body, actionLabel, onAction, primary }: Choice) {
   return (
     <div>
       <Card padding="normal" borderRadius="large">
@@ -75,7 +74,6 @@ function ChoiceCard({ icon, title, body, actionLabel, onAction, primary, footnot
             {actionLabel}
           </Button>
         </Card.Action>
-        {footnote}
       </Card>
     </div>
   )

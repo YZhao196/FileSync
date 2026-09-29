@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { Icon } from '../components/Icon'
+import { Button, FormControl, Heading, IconButton, Stack, TextInput } from '@primer/react'
+import { InlineMessage } from '@primer/react/experimental'
+import { carbonIcon, Icon } from '../components/Icon'
 import { useToast } from '../components/Toaster'
 import { testConnection } from '../core/client'
 import type { BackupStatus } from '../core/types'
@@ -74,55 +76,75 @@ export function ReplaceServer() {
         position: 'absolute',
         inset: 0,
         overflowY: 'auto',
-        background: 'var(--surf2)',
-        padding: '28px 32px 40px',
+        background: 'var(--background)',
+        padding: 'var(--spacing-06) var(--spacing-07) var(--spacing-08)',
       }}
     >
-      <div style={{ maxWidth: 560, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <header style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button className="btn btn--sm" onClick={() => go('settings')} aria-label="Back to settings">
-            <Icon name="back" size={13} />
-          </button>
-          <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--tx)' }}>Replace your server</h1>
+      <Stack direction="vertical" gap="spacious" style={{ maxWidth: 560, margin: '0 auto' }}>
+        <header style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-04)' }}>
+          <IconButton
+            icon={carbonIcon('back')}
+            aria-label="Back to settings"
+            size="small"
+            onClick={() => go('settings')}
+          />
+          <Heading as="h1" variant="medium">
+            Replace your server
+          </Heading>
         </header>
 
         <StepBar current={step} />
 
         {step === 'source' && (
           <Panel title="The server being replaced">
-            <p style={p}>
+            <Body>
               This machine will take over from the server below. It is provisioned under a temporary
               name first, and only adopts the real one once the copy has been verified — so the
               server you are using now stays up throughout.
-            </p>
-            <div className="group">
-              <div className="group__item">
-                <span>Current server</span>
-                <code style={code}>{connection.address || 'not set'}</code>
-              </div>
-              <div className="group__item group__item--action" onClick={runTest}>
-                <span>Test connection</span>
-                <span style={{ fontSize: 12, color: sourceOk ? 'var(--ok)' : 'var(--txm)' }}>
-                  {testing ? 'Testing…' : sourceOk ? '● Reachable' : 'Test'}
-                </span>
-              </div>
-            </div>
+            </Body>
+            <Rows>
+              <Row label="Current server" value={<code className="code-01">{connection.address || 'not set'}</code>} />
+              <Row
+                label="Test connection"
+                last
+                onAction={runTest}
+                value={
+                  testing ? (
+                    <span style={{ color: 'var(--text-secondary)' }}>Testing…</span>
+                  ) : sourceOk ? (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 'var(--spacing-02)',
+                        color: 'var(--support-success)',
+                      }}
+                    >
+                      <Icon name="check" filled />
+                      Reachable
+                    </span>
+                  ) : (
+                    <span style={{ color: 'var(--text-secondary)' }}>Test</span>
+                  )
+                }
+              />
+            </Rows>
             <CloudNotice backup={backup} healthy={cloudHealthy} />
             <Actions>
-              <button className="btn btn--primary" onClick={() => setStep('folders')}>
+              <Button variant="primary" onClick={() => setStep('folders')}>
                 Continue
-              </button>
+              </Button>
             </Actions>
           </Panel>
         )}
 
         {step === 'folders' && (
           <Panel title="Where the libraries live on this machine">
-            <p style={p}>
+            <Body>
               Two folders, one per role. Different disks are strongly preferred — that is what keeps
               a drive failure to one role instead of both — but it is a recommendation, not a
               requirement.
-            </p>
+            </Body>
             <FolderField
               label="Photos folder"
               hint="Immich will manage this folder."
@@ -142,19 +164,19 @@ export function ReplaceServer() {
               </Notice>
             )}
             <Actions>
-              <button className="btn" onClick={() => setStep('source')}>
+              <Button variant="default" onClick={() => setStep('source')}>
                 Back
-              </button>
-              <button className="btn btn--primary" onClick={() => setStep('route')}>
+              </Button>
+              <Button variant="primary" onClick={() => setStep('route')}>
                 Continue
-              </button>
+              </Button>
             </Actions>
           </Panel>
         )}
 
         {step === 'route' && (
           <Panel title="How the data comes across">
-            <p style={p}>Both routes are over the network. Pick by what you need to trust.</p>
+            <Body>Both routes are over the network. Pick by what you need to trust.</Body>
 
             {!cloudHealthy && backup && (
               <Notice tone="warn">
@@ -186,22 +208,22 @@ export function ReplaceServer() {
             />
 
             <Actions>
-              <button className="btn" onClick={() => setStep('folders')}>
+              <Button variant="default" onClick={() => setStep('folders')}>
                 Back
-              </button>
-              <button className="btn btn--primary" onClick={() => setStep('provision')}>
+              </Button>
+              <Button variant="primary" onClick={() => setStep('provision')}>
                 Continue
-              </button>
+              </Button>
             </Actions>
           </Panel>
         )}
 
         {step === 'provision' && (
           <Panel title="Provision">
-            <p style={p}>
+            <Body>
               These are the steps this machine will run, under a temporary Tailscale name so the
               current server keeps answering:
-            </p>
+            </Body>
             <StepList
               lines={[
                 'Checking Docker',
@@ -225,32 +247,30 @@ export function ReplaceServer() {
             </Notice>
 
             <Actions>
-              <button className="btn" onClick={() => setStep('route')}>
+              <Button variant="default" onClick={() => setStep('route')}>
                 Back
-              </button>
-              <button
-                className="btn btn--primary"
+              </Button>
+              <Button
+                variant="primary"
                 onClick={() => {
                   setRole('host')
                   setStep('handover')
                 }}
               >
                 Mark this PC as the server
-              </button>
+              </Button>
             </Actions>
-            <p style={{ ...p, fontSize: 11, color: 'var(--txd)', marginTop: -4 }}>
-              That button only updates the app's own role — no provisioning has run.
-            </p>
+            <Footnote>That button only updates the app's own role — no provisioning has run.</Footnote>
           </Panel>
         )}
 
         {step === 'handover' && (
           <Panel title="What happens to the old machine">
-            <p style={p}>
+            <Body>
               The copy is across, but the old machine still holds everything. Decide its fate only
               after the new server has been verified and has completed its own backup — until then
               it is a real second copy, not a spare.
-            </p>
+            </Body>
 
             <StepList
               lines={[
@@ -286,16 +306,16 @@ export function ReplaceServer() {
             )}
 
             <Actions>
-              <button className="btn" onClick={() => setStep('provision')}>
+              <Button variant="default" onClick={() => setStep('provision')}>
                 Back
-              </button>
-              <button className="btn btn--primary" onClick={() => go('server')}>
+              </Button>
+              <Button variant="primary" onClick={() => go('server')}>
                 Done
-              </button>
+              </Button>
             </Actions>
           </Panel>
         )}
-      </div>
+      </Stack>
     </div>
   )
 }
@@ -323,16 +343,23 @@ function CloudNotice({ backup, healthy }: { backup: BackupStatus | undefined; he
 function StepBar({ current }: { current: Step }) {
   const index = STEPS.findIndex((s) => s.id === current)
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+    <div
+      className="label-01"
+      style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-03)' }}
+    >
       {STEPS.map((s, i) => {
         const active = i === index
         const done = index >= 0 && i < index
         return (
-          <span key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {i > 0 && <span style={{ color: 'var(--txd)' }}>›</span>}
+          <span key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-03)' }}>
+            {i > 0 && <span style={{ color: 'var(--text-helper)' }}>›</span>}
             <span
               style={{
-                color: active ? 'var(--acc)' : done ? 'var(--tx2)' : 'var(--txd)',
+                color: active
+                  ? 'var(--text-primary)'
+                  : done
+                    ? 'var(--text-secondary)'
+                    : 'var(--text-helper)',
                 fontWeight: active ? 600 : 400,
               }}
             >
@@ -347,28 +374,42 @@ function StepBar({ current }: { current: Step }) {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--tx)' }}>{title}</h2>
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-05)' }}>
+      <Heading as="h2" variant="small">
+        {title}
+      </Heading>
       {children}
     </section>
+  )
+}
+
+function Body({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="body-01" style={{ color: 'var(--text-secondary)' }}>
+      {children}
+    </p>
+  )
+}
+
+function Footnote({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="helper-text-01" style={{ color: 'var(--text-helper)', marginTop: 'calc(var(--spacing-02) * -1)' }}>
+      {children}
+    </p>
   )
 }
 
 function StepList({ lines }: { lines: string[] }) {
   return (
     <ol
-      style={{
-        listStyle: 'none',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 7,
-        fontFamily: "'DM Mono', monospace",
-        fontSize: 12,
-      }}
+      className="code-02"
+      style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-03)' }}
     >
       {lines.map((line) => (
-        <li key={line} style={{ display: 'flex', gap: 8, color: 'var(--tx2)' }}>
-          <span style={{ color: 'var(--txd)' }}>○</span>
+        <li key={line} style={{ display: 'flex', gap: 'var(--spacing-03)', color: 'var(--text-secondary)' }}>
+          <span aria-hidden="true" style={{ color: 'var(--text-helper)' }}>
+            ○
+          </span>
           {line}
         </li>
       ))}
@@ -388,28 +429,24 @@ function FolderField({
   onChange: (v: string) => void
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-      <span className="field-label">{label}</span>
-      <span className="hint">{hint}</span>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          className="input"
-          value={value}
-          aria-label={label}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <button
-          className="btn"
-          style={{ whiteSpace: 'nowrap' }}
+    <FormControl>
+      <FormControl.Label>{label}</FormControl.Label>
+      <div style={{ display: 'flex', gap: 'var(--spacing-03)', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <TextInput block value={value} onChange={(e) => onChange(e.target.value)} />
+        </div>
+        <Button
+          variant="default"
           onClick={async () => {
             const picked = await pickFolder(value)
             if (picked) onChange(picked)
           }}
         >
-          Browse…
-        </button>
+          Browse
+        </Button>
       </div>
-    </div>
+      <FormControl.Caption>{hint}</FormControl.Caption>
+    </FormControl>
   )
 }
 
@@ -426,6 +463,7 @@ function RouteCard({
   detail: string
   disabled?: boolean
 }) {
+  const on = selected && !disabled
   return (
     <div
       role="radio"
@@ -441,21 +479,21 @@ function RouteCard({
       }}
       style={{
         display: 'flex',
-        gap: 10,
-        padding: 14,
-        border: `1px solid ${selected && !disabled ? 'var(--acc)' : 'var(--bd)'}`,
-        background: selected && !disabled ? 'var(--accbg)' : 'var(--surf)',
-        borderRadius: 8,
+        gap: 'var(--spacing-04)',
+        padding: 'var(--spacing-05)',
+        border: `1px solid ${on ? 'var(--border-interactive)' : 'var(--border-subtle-01)'}`,
+        background: on ? 'var(--background-selected)' : 'var(--layer-01)',
+        borderRadius: 'var(--border-radius-medium)',
         cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.55 : 1,
+        opacity: disabled ? 0.5 : 1,
       }}
     >
       <span
         style={{
-          width: 15,
-          height: 15,
+          width: 16,
+          height: 16,
           borderRadius: '50%',
-          border: `1.5px solid ${selected && !disabled ? 'var(--acc)' : 'var(--bd)'}`,
+          border: `1px solid ${on ? 'var(--interactive)' : 'var(--border-strong-01)'}`,
           flexShrink: 0,
           marginTop: 2,
           display: 'flex',
@@ -463,30 +501,28 @@ function RouteCard({
           justifyContent: 'center',
         }}
       >
-        {selected && !disabled && (
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--acc)' }} />
-        )}
+        {on && <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--interactive)' }} />}
       </span>
-      <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <strong style={{ fontSize: 13, color: 'var(--tx)' }}>{title}</strong>
-        <span style={{ fontSize: 12, color: 'var(--tx2)', lineHeight: 1.5 }}>{detail}</span>
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-02)' }}>
+        <span className="heading-compact-01" style={{ color: 'var(--text-primary)' }}>
+          {title}
+        </span>
+        <span className="body-compact-01" style={{ color: 'var(--text-secondary)' }}>
+          {detail}
+        </span>
       </span>
     </div>
   )
 }
 
-function Notice({ tone, children }: { tone: 'info' | 'warn'; children: React.ReactNode }) {
-  const warn = tone === 'warn'
+function Rows({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        fontSize: 12,
-        lineHeight: 1.55,
-        padding: '10px 12px',
-        borderRadius: 8,
-        border: '1px solid var(--bd)',
-        background: warn ? 'var(--warnbg)' : 'var(--surf)',
-        color: warn ? 'var(--warn)' : 'var(--tx2)',
+        border: '1px solid var(--border-subtle-01)',
+        borderRadius: 'var(--border-radius-medium)',
+        background: 'var(--layer-01)',
+        overflow: 'hidden',
       }}
     >
       {children}
@@ -494,15 +530,55 @@ function Notice({ tone, children }: { tone: 'info' | 'warn'; children: React.Rea
   )
 }
 
-function Actions({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{children}</div>
+function Row({
+  label,
+  value,
+  onAction,
+  last,
+}: {
+  label: string
+  value: React.ReactNode
+  onAction?: () => void
+  last?: boolean
+}) {
+  return (
+    <div
+      onClick={onAction}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 'var(--spacing-04)',
+        padding: 'var(--spacing-04) var(--spacing-05)',
+        borderBottom: last ? 'none' : '1px solid var(--border-subtle-01)',
+        cursor: onAction ? 'pointer' : undefined,
+      }}
+    >
+      <span className="body-compact-01" style={{ color: 'var(--text-primary)' }}>
+        {label}
+      </span>
+      <span className="body-compact-01" style={{ color: 'var(--text-secondary)' }}>
+        {value}
+      </span>
+    </div>
+  )
 }
 
-const p: React.CSSProperties = { fontSize: 13, color: 'var(--tx2)', lineHeight: 1.55 }
-const code: React.CSSProperties = {
-  fontSize: 12,
-  color: 'var(--tx2)',
-  background: 'var(--surf2)',
-  padding: '2px 8px',
-  borderRadius: 3,
+function Notice({ tone, children }: { tone: 'info' | 'warn'; children: React.ReactNode }) {
+  // `InlineMessage` lays its icon and body out as two grid cells, so its body
+  // must be a single element — loose text nodes would each become their own
+  // cell and push the copy into a sliver.
+  return (
+    <InlineMessage variant={tone === 'warn' ? 'warning' : undefined}>
+      <div>{children}</div>
+    </InlineMessage>
+  )
+}
+
+function Actions({ children }: { children: React.ReactNode }) {
+  return (
+    <Stack direction="horizontal" gap="condensed" wrap="wrap" align="center">
+      {children}
+    </Stack>
+  )
 }
