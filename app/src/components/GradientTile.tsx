@@ -88,8 +88,8 @@ export function GradientTile({
             background: 'rgba(0,0,0,0.55)',
             color: '#fff',
             borderRadius: '50%',
-            width: 18,
-            height: 18,
+            width: 20,
+            height: 20,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -97,7 +97,7 @@ export function GradientTile({
           }}
           aria-label="Video"
         >
-          <Icon name="play" size={8} filled />
+          <Icon name="play" size={16} filled />
         </span>
       )}
 
@@ -115,7 +115,7 @@ export function GradientTile({
         >
           <Icon
             name="star"
-            size={12}
+            size={16}
             filled
             style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.65))' }}
           />
@@ -130,8 +130,8 @@ export function GradientTile({
               position: 'absolute',
               top: 4,
               right: 4,
-              width: 18,
-              height: 18,
+              width: 20,
+              height: 20,
               background: 'var(--acc)',
               borderRadius: '50%',
               display: 'flex',
@@ -141,7 +141,7 @@ export function GradientTile({
               color: '#fff',
             }}
           >
-            <Icon name="check" size={11} />
+            <Icon name="check" size={16} />
           </div>
         </>
       )}

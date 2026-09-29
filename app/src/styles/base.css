@@ -18,9 +18,31 @@ body,
 body {
   background: var(--bg0);
   color: var(--tx);
-  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
-  font-size: 13px;
+  font-family: var(--font-sans);
+  /* BuildNexus body-01: 14px on a 1.43 line. */
+  font-size: 14px;
+  line-height: 1.43;
   -webkit-font-smoothing: antialiased;
+
+  /* A desktop application, not a web page: dragging across the chrome should
+     not smear a blue selection over the interface. Text a user has a reason to
+     copy — logs, paths, IDs, hashes, field values — opts back in below. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Where selection is the point. `code` and `.mono` cover log output, file
+   paths, container names and versions; the rest cover anything the user typed
+   or might want to copy out. */
+input,
+textarea,
+code,
+pre,
+kbd,
+.mono,
+[data-selectable] {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 button,
@@ -56,7 +78,7 @@ input:focus {
 code,
 kbd,
 .mono {
-  font-family: 'DM Mono', ui-monospace, monospace;
+  font-family: var(--font-mono);
 }
 
 ::-webkit-scrollbar {
@@ -127,15 +149,22 @@ kbd,
   color: var(--txd);
 }
 
+/* BuildNexus: the primary button is the brand blue with text-on-color on it. */
 .btn--primary {
-  background: var(--acc);
-  border-color: var(--acc);
-  color: #fff;
-  border-radius: 8px;
+  background: var(--button-primary);
+  border-color: var(--button-primary);
+  color: var(--text-on-color);
+  border-radius: var(--border-radius-medium);
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--acc) 88%, black);
+  background: var(--button-primary-hover);
+  border-color: var(--button-primary-hover);
+}
+
+.btn--primary:active:not(:disabled) {
+  background: var(--button-primary-active);
+  border-color: var(--button-primary-active);
 }
 
 .btn--danger {
@@ -290,8 +319,8 @@ kbd,
 
 .seg__opt--active,
 .seg__opt--active:hover {
-  background: var(--acc);
-  color: #fff;
+  background: var(--interactive);
+  color: var(--text-on-color);
 }
 
 /* ── Misc ──────────────────────────────────────────────────────────────── */
@@ -313,9 +342,10 @@ kbd,
 
 .toast {
   animation: fadeIn 150ms ease;
-  background: #172b4d;
-  color: #fff;
-  border-radius: 6px;
+  /* BuildNexus: tooltips and toasts sit on the inverse surface. */
+  background: var(--background-inverse);
+  color: var(--text-inverse);
+  border-radius: var(--border-radius-medium);
   padding: 10px 18px;
   font-size: 13px;
   box-shadow: var(--shadow-toast);

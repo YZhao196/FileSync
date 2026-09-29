@@ -1,66 +1,45 @@
 /*
- * Theme tokens, lifted from the "Frontend Designs" prototype.
- * The prototype templated these as {{ thX }} placeholders over a light/dark
- * pair; here they are CSS custom properties switched by [data-theme].
+ * Interim bridge to BuildNexus.
+ *
+ * These are the app's original token names, pointed at BuildNexus (Carbon)
+ * tokens. Nothing here defines a colour of its own — every value comes from
+ * tokens.css, which is theme-aware, so this file needs no light/dark blocks.
+ *
+ * It exists so the app is BuildNexus-styled from the first commit of the
+ * migration rather than only at the end. Screens are being converted to Primer
+ * components a layer at a time; as each moves off these names, its aliases are
+ * deleted, and this file disappears when the last one does.
  */
 
-:root,
-:root[data-theme='light'] {
-  color-scheme: light;
+:root {
+  /* Surfaces — Carbon layers, not an ad-hoc scale. */
+  --bg0: var(--background);
+  --surf: var(--layer-01);
+  --surf2: var(--layer-02);
+  --surf3: var(--layer-accent-01);
 
-  --bg0: #f5f5f7;
-  --surf: #ffffff;
-  --surf2: #f7f8f9;
-  --surf3: #f1f3f5;
+  --bd: var(--border-subtle-01);
 
-  --bd: #dcdfe4;
+  --tx: var(--text-primary);
+  --tx2: var(--text-secondary);
+  --txm: var(--text-helper);
+  --txd: var(--text-placeholder);
 
-  --tx: #172b4d;
-  --tx2: #44546f;
-  --txm: #6b778c;
-  --txd: #8993a4;
+  --acc: var(--link-primary);
+  --accbg: var(--highlight);
+  --ok: var(--support-success);
+  --danger: var(--support-error);
+  --warn: var(--support-warning);
 
-  --acc: #0c66e4;
-  --accbg: #e9f2ff;
-  --ok: #22a06b;
-  --danger: #c9372c;
-  --warn: #974f0c;
-  --warnbg: #fff8f0;
-  --dangerbg: #fff5f4;
+  /* Carbon has no tinted status fill; it separates with layers instead. */
+  --warnbg: var(--layer-02);
+  --dangerbg: var(--layer-02);
 
-  --shadow-card: 0 1px 2px rgba(9, 30, 66, 0.07);
-  --shadow-raised: 0 1px 2px rgba(9, 30, 66, 0.1);
-  --shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --skeleton: var(--skeleton-background);
 
-  --skeleton: #e8ecf0;
-}
-
-:root[data-theme='dark'] {
-  color-scheme: dark;
-
-  --bg0: #141414;
-  --surf: #1f1f1f;
-  --surf2: #242424;
-  --surf3: #2e2e2e;
-
-  --bd: rgba(255, 255, 255, 0.1);
-
-  --tx: #ffffff;
-  --tx2: #b4b4b4;
-  --txm: #808080;
-  --txd: #565656;
-
-  --acc: #2995ff;
-  --accbg: rgba(41, 149, 255, 0.15);
-  --ok: #4bce97;
-  --danger: #ff4538;
-  --warn: #f5a623;
-  --warnbg: rgba(245, 166, 35, 0.12);
-  --dangerbg: rgba(255, 69, 56, 0.12);
-
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.6);
-
-  --skeleton: #2a2a2a;
+  /* BuildNexus is flat: layers separate content, not shadows. Only overlays
+     are raised. */
+  --shadow-card: none;
+  --shadow-raised: none;
+  --shadow-toast: var(--shadow-overlay);
 }
