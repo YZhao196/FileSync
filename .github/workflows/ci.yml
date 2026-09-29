@@ -41,10 +41,11 @@ jobs:
       - name: Build
         run: npm run build
 
-  # The host agent is dependency-free Node, so it needs no install step — which
-  # is the point of it. Syntax-checked as well as tested, because `node --check`
-  # catches an import of a file that does not exist, and a broken COPY in the
-  # Dockerfile would otherwise only surface on the server.
+  # The infra scripts: the host agent, which is dependency-free Node and so needs
+  # no install step — that being the point of it — and the provisioning script.
+  # Syntax-checked as well as tested, because `node --check` catches an import of
+  # a file that does not exist, and a broken COPY in the Dockerfile would
+  # otherwise only surface on the server.
   agent:
     runs-on: ubuntu-latest
     steps:
@@ -60,6 +61,20 @@ jobs:
           node --check infra/agent/decisions.mjs
           node --check infra/agent/captionStore.mjs
           node --check infra/agent/containers.mjs
+
+      # provision.sh builds generated files inside double-quoted `bash -c`
+      # strings, so a backtick in a *comment* is command substitution and runs.
+      # One did, at provision time, before it was noticed — a comment about
+      # pulling images would have pulled them.
+      - name: provision.sh is safe to run
+        run: |
+          bash -n infra/provision/provision.sh
+          if grep -n '`' infra/provision/provision.sh; then
+            echo "::error::backticks in provision.sh are command substitution, even in comments"
+            exit 1
+          fi
+          python3 -m py_compile infra/agent/layla/server.py
+          echo "infra scripts ok"
 
       - name: Test
         run: |
