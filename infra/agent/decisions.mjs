@@ -29,19 +29,35 @@ const CAPTION_PROMPT =
   'Describe this photograph factually in one sentence: the subject, the setting, ' +
   'the lighting, and whether it is sharp or blurry. Do not speculate about people.'
 
+/**
+ * The cull queue's question, in Laya's own shape: an ordered scale.
+ *
+ * `criteria` is the scale, best last. UNVERIFIED: Laya answers a `score`
+ * question on that scale, but its documentation does not say whether the answer
+ * is the level's index or an already-normalised value. This assumes the index,
+ * which is what an ordered list implies. `normalizeScore` is the one place to
+ * correct if the first real run produces scores that do not match the captions.
+ */
+const SCORE_SCALE = ['unusable', 'poor', 'fair', 'good', 'excellent']
+const SCORE_ID = 'quality'
+
 const SCORE_QUESTION = {
-  id: 'quality',
-  primitive: 'score',
-  prompt:
-    'How good a photograph is this description? 0 is unusable — blurry, dark or ' +
-    'badly framed. 1 is a clear, well-framed photograph.',
+  [SCORE_ID]: {
+    type: 'score',
+    instructions:
+      'How good a photograph is this description? "unusable" is blurry, dark or ' +
+      'badly framed; "excellent" is clear and well composed.',
+    criteria: SCORE_SCALE,
+  },
 }
 
-const ALBUM_QUESTION = (options) => ({
-  id: 'album',
-  primitive: 'choice',
-  prompt: 'Which of these albums does this photograph belong in?',
-  options,
+/** One choice over the user's own album names — they are the entire criteria. */
+const albumQuestion = (albums) => ({
+  album: {
+    type: 'choice',
+    instructions: 'Which of these albums does this photograph belong in?',
+    criteria: albums,
+  },
 })
 
 async function getJson(url, timeoutMs, headers) {
@@ -74,35 +90,28 @@ function describeError(err) {
 }
 
 /**
- * UNVERIFIED: the scale Laya's `score` primitive answers on is not stated in
- * units anywhere in its documentation. The contract assumed here is 0..1, and a
- * larger answer is rescaled on the assumption it is a 0..10 ordinal or a
- * percentage. Correcting this is a one-line change once a real server exists.
+ * An index on the criteria scale, as 0..1 so the client can render a percentage.
+ *
+ * UNVERIFIED, and the one genuinely uncertain line in this file: it treats the
+ * answer as a scale index. A value outside the scale returns `null` rather than
+ * being squeezed into range, so a units mistake shows up as photos failing to
+ * score — visible — instead of a queue full of confident nonsense.
  */
-function normalizeScore(raw) {
+function normalizeScore(raw, scaleLength) {
   const n = Number(raw)
   if (!Number.isFinite(n)) return null
-  if (n <= 1) return Math.max(0, n)
-  if (n <= 10) return Math.min(1, n / 10)
-  return Math.min(1, n / 100)
+  const span = Math.max(1, scaleLength - 1)
+  if (n < 0 || n > span) return null
+  return n / span
 }
 
-/**
- * UNVERIFIED: the same appetite for Laya's `choice` answer shape. A conforming
- * server replies with a bare label; the object forms are accepted because much
- * of Laya's own documentation wraps a label with a confidence. Guessing wrong
- * matters: dropping every suggestion is visible, whereas a thrown error here
- * would read as the whole feature being broken.
- */
+/** The chosen label, which Laya returns under `choice`. */
 function readChoice(answer) {
-  if (typeof answer === 'string') return { value: answer, confidence: 1 }
-  if (answer && typeof answer === 'object') {
-    const value = answer.value ?? answer.choice ?? answer.label ?? answer.option
-    if (typeof value !== 'string') return null
-    const confidence = Number(answer.confidence ?? answer.probability ?? 1)
-    return { value, confidence: Number.isFinite(confidence) ? confidence : 1 }
-  }
-  return null
+  if (!answer || typeof answer !== 'object') return null
+  const value = answer.choice ?? answer.label ?? answer.value
+  if (typeof value !== 'string') return null
+  const confidence = Number(answer.confidence ?? answer.probability ?? 1)
+  return { value, confidence: Number.isFinite(confidence) ? confidence : 1 }
 }
 
 export function createDecisions({
@@ -170,7 +179,11 @@ export function createDecisions({
     return text
   }
 
-  /** The one seam in front of however Laya is served. Everything else is ours. */
+  /**
+   * The seam in front of Laya. The service is a pass-through over Laya's own
+   * `predict`, so this sends its two arguments and reads its `answers` — there is
+   * no translation here to drift out of step with the model's API.
+   */
   async function callLaya(state, questions) {
     if (!laylaUrl) return null
     const res = await postJson(`${laylaUrl}/decide`, { state, questions }, DECISION_TIMEOUT_MS)
@@ -217,8 +230,10 @@ export function createDecisions({
           failed.push({ id, reason: 'the photo could not be read' })
           continue
         }
-        const answers = await callLaya(text, [SCORE_QUESTION])
-        const score = answers ? normalizeScore(answers[SCORE_QUESTION.id]) : null
+        const answers = await callLaya(text, SCORE_QUESTION)
+        const score = answers
+          ? normalizeScore(answers[SCORE_ID]?.score, SCORE_SCALE.length)
+          : null
         if (score === null) {
           // The caption is kept regardless: a retry once the decision model is
           // up then costs nothing for the half that was expensive.
@@ -245,7 +260,7 @@ export function createDecisions({
     for (const id of slice) {
       const text = await captionFor(id)
       if (!text) continue
-      const answers = await callLaya(text, [ALBUM_QUESTION(albums)])
+      const answers = await callLaya(text, albumQuestion(albums))
       const picked = answers ? readChoice(answers.album) : null
       // A label the user has no album for is not a suggestion, whatever the
       // model thought — the picker has nothing to render for it.

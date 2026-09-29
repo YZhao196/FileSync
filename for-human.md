@@ -326,13 +326,25 @@ in the frame, not a judgement of how good the photograph is. The scoring model c
 catch blur, darkness and framing; it cannot rank two good holiday photos. The
 queue is "likely rejects, weakest first".
 
-**`UNVERIFIED:` the scoring half has no confirmed home yet.** Laya, the
-open-weight decision model this was built for, is weeks old and none of its
-documented distribution routes states a supported container entrypoint.
-`infra/agent/docker-compose.yml` carries a comment naming the two candidates and
-`infra/agent/README.md` explains the seam. Until it is resolved the cull queue
-still works from captions alone and the album suggestion simply does not appear —
-which is why the vision half is not blocked on the unresolved half.
+**`UNVERIFIED:` the scoring half has never been built or run.** Laya, the
+open-weight decision model this was built for, is weeks old. There is now a
+service for it — `infra/agent/layla/`, a Dockerfile and a small Python server
+that passes requests straight through to Laya's own `predict` — and the
+`--profile decisions` command above starts it alongside Ollama. What nobody has
+done is confirm that `pip install laya` and `laya.load(...)` work as documented
+inside a container.
+
+Its image is large — torch, plus a couple of gigabytes of checkpoint on first
+use — which is why it sits behind the profile with Ollama and not in a normal
+install.
+
+The one thing to look at on the first real run is whether the scores make sense
+against the captions. `normalizeScore` assumes Laya returns a scale *index*;
+Laya's documentation does not say, and if it returns a normalised value instead,
+every score will be wrong in a plausible-looking way. If it is, that function and
+`layla/server.py` are the only two places to change — and the cull queue still
+works from captions alone meanwhile, which is why the vision half is not blocked
+on this.
 
 **Cost when off:** zero. No port, no container, no request. The four
 `/api/decisions` routes answer `unavailable` and the app hides every surface that

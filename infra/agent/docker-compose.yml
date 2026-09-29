@@ -106,26 +106,44 @@ services:
     volumes:
       - ollama-models:/root/.ollama
 
-  # ── Laya ────────────────────────────────────────────────────────────────────
-  # UNVERIFIED, and deliberately not defined. Laya is the open-weight decision
-  # model this pipeline was built for, but it is weeks old and none of its
-  # documented distribution routes (`pip install laya`, `laya-sdk` for ONNX, a
-  # Jev-wire-compatible server) states a supported container entrypoint.
+  # The decision model — the open-weight alternative to TypeSafe's Jev, and the
+  # thing this pipeline was built for.
   #
-  # Two shapes are plausible, and which one works cannot be settled without
-  # running it:
+  # UNVERIFIED: never built or run. The Dockerfile installs `laya` from PyPI and
+  # serves its own `predict` almost unchanged, so there is very little here to be
+  # wrong — but "very little" is not "checked". See for-human.md §8.
   #
-  #   1. A Python image running `pip install laya`, serving POST /decide.
-  #      Expected by the agent as { state, questions } -> { answers }.
-  #      Costs a multi-GB torch image on a machine already tight for RAM.
-  #   2. An ONNX image built on `laya-sdk`, exposing the same /decide contract.
-  #      Far smaller, but its Node bindings are unproven here.
+  # It publishes no port. Only the agent talks to it, over the compose network,
+  # which is strictly better than exposing a service that accepts arbitrary state.
   #
-  # Whichever it turns out to be, only `callLaya` in decisions.mjs has to change:
-  # the agent knows nothing else about it. Until then the cull queue still works
-  # from captions alone and the album suggestion row simply does not render.
-  #
-  # See for-human.md and README.md.
+  # The image is large: torch, plus the checkpoint on first use. That is why it
+  # sits behind the profile with Ollama rather than in a normal install.
+  layla:
+    build: ./layla
+    profiles: ["decisions"]
+    restart: unless-stopped
+    mem_limit: ${LAYLA_MEMORY:-4g}
+    environment:
+      # The multilingual checkpoint, not the English one. Laya's English
+      # checkpoint stays confident while collapsing outside English, and photo
+      # captions are not reliably English — the vision model is asked to describe
+      # a picture, not to write prose in a language we chose.
+      LAYLA_CHECKPOINT: "${LAYLA_CHECKPOINT:-convaiinnovations/laya-multilingual}"
+    volumes:
+      # So a rebuild does not re-download the checkpoints.
+      - layla-models:/models
+    healthcheck:
+      # /health only reports ok once the model is resident, which is the question
+      # worth asking — a service that accepts decisions it cannot serve is worse
+      # than one still loading.
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health').status==200 else 1)"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
 
 volumes:
   ollama-models:
+  layla-models:

@@ -17,6 +17,10 @@ target/
 # it is killed mid-run.
 infra/agent/*.test-state.json
 
+# Python, from compile-checking the Laya service.
+__pycache__/
+*.pyc
+
 # OS / editor
 .DS_Store
 Thumbs.db

@@ -51,6 +51,8 @@ deliberate, and mirrors the collectors: the caller can say something specific.
 | `AGENT_CAPTION_PATH` | `/var/lib/filesynapse/decisions/captions.json` | Caption cache |
 | `AGENT_MEMORY` | `512m` | Container memory cap |
 | `OLLAMA_MEMORY` | `3g` | Vision model's cap — raise it if the model refuses to load |
+| `LAYLA_MEMORY` | `4g` | Decision model's cap |
+| `LAYLA_CHECKPOINT` | `convaiinnovations/laya-multilingual` | Not the English one — see `layla/` |
 
 Both containers are capped, and both have healthchecks. The caps exist because
 this machine also runs Immich's own ML container: an uncapped model does not fail
@@ -80,20 +82,37 @@ entry rather than serving one model's text as another's.
 ### Running the models
 
 ```bash
-docker compose --profile decisions up -d
+docker compose --profile decisions up -d      # starts ollama and builds layla
 docker compose exec ollama ollama pull moondream
 ```
+
+`layla` is built locally from [`layla/`](layla/) rather than pulled, because it
+is a thin wrapper we own. Its first build is slow — torch is large — and the
+first request is slower still, since the checkpoint downloads then. Give it a
+few minutes before concluding it is broken.
 
 `ollama` is behind a profile so a plain `docker compose up -d` does not pull
 gigabytes of model onto a machine that has to survive Immich indexing first.
 
-**Laya, the decision model, has no service here yet.** `UNVERIFIED:` its
-container story is unresolved — `pip install laya`, an ONNX build on `laya-sdk`,
-and a Jev-wire-compatible server are all documented, and none states a supported
-entrypoint. `docker-compose.yml` carries a comment naming the two candidates.
-Whatever it turns out to be, only `callLaya` in `decisions.mjs` has to change:
-the agent knows nothing else about it. Until then the cull queue still works
-from captions alone and the album suggestion simply does not appear.
+**Laya, the decision model, is a service under `layla/`.** `UNVERIFIED:` it has
+never been built or run. `server.py` is deliberately a pass-through over Laya's
+own `predict` — `POST /decide` takes its two arguments and returns its `answers`,
+so there is no translation layer to get wrong and nothing to keep in step when
+the model's API moves. The Dockerfile installs `laya` from PyPI and pins torch to
+the CPU wheels, since this box has no GPU.
+
+It publishes no port; only the agent reaches it, over the compose network.
+
+Two things are genuinely uncertain, and both are marked in the code. First,
+whether `pip install laya` and `laya.load(...)` work as documented in a container
+at all. Second, whether a `score` answer is the criteria list's index or an
+already-normalised value — `normalizeScore` in `decisions.mjs` assumes the index
+and returns `null` for anything outside the scale, so getting it wrong shows up
+as photos failing to score rather than as a queue of confident nonsense.
+
+If either is wrong, the change is confined to `layla/server.py` and
+`normalizeScore`. Until it is sorted, the cull queue still works from captions
+alone and the album suggestion simply does not appear.
 
 ### Hardware honesty
 
