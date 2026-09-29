@@ -401,12 +401,15 @@ designs were followed.
    downloading and deleting impossible — a hash cannot be turned back into an id.
 7. **Provisioning writes two stacks, and the files library is Nextcloud's own data
    directory.** PLAN.md §7 sketches one Nextcloud compose that reaches the user's
-   documents through bind mounts added as *external storage*. Provisioning instead
-   mounts the library as `/var/www/html/data`, which is where Nextcloud keeps
-   files natively — so the app's Files browser and Nextcloud's own UI see the same
-   tree. The practical difference is where your documents are on disk:
-   `/srv/cloud/<user>/files/…`, not `/srv/cloud/documents`. PLAN.md's sketch is
-   older than this decision.
+   documents through bind mounts added as *external storage*, and mounts
+   `./nc-html` over the whole application directory. Provisioning instead mounts
+   the library as `/var/www/html/data`, which is where Nextcloud keeps files
+   natively, and persists only `config`, `custom_apps` and `themes` on named
+   volumes. The practical difference for documents is where they are on disk:
+   `/srv/cloud/<user>/files/…`, not `/srv/cloud/documents`. The volume choice is
+   the more important of the two — a volume over all of `/var/www/html` pins the
+   application code at the version that first ran, so later image pulls stop
+   upgrading Nextcloud. PLAN.md's sketch is older than either decision.
 
 ---
 
