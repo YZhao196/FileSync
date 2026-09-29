@@ -31,11 +31,10 @@ services:
       AGENT_TOKEN: "${AGENT_TOKEN:?set AGENT_TOKEN in .env}"
       AGENT_PHOTOS_PATH: "/srv/photos"
       AGENT_CLOUD_PATH: "/srv/cloud"
-      # `slug=container` where a bare name is ambiguous. Immich is the one that
-      # needs it: `immich` alone also matches `immich-machine-learning`, so the
-      # status tile and the Restart button could both have landed on the ML
-      # container. See containers.mjs.
-      AGENT_SERVICES: "${AGENT_SERVICES:-immich=immich-server,nextcloud,mariadb,redis}"
+      # `slug=container`, because neither stack's container names are guessable:
+      # Immich's compose sets `immich_server` and `immich_postgres`, ours sets
+      # `nextcloud` and `nextcloud-db`. See containers.mjs.
+      AGENT_SERVICES: "${AGENT_SERVICES:-immich=immich_server,nextcloud=nextcloud,mariadb=nextcloud-db,postgres=immich_postgres}"
       RESTIC_REPOSITORY: "b2:filesynapse-backup:/"
       AGENT_BACKUP_STATUS: "/var/lib/filesynapse/last-backup"
       # For `restic snapshots` to work, the agent also needs B2_ACCOUNT_ID,

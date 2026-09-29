@@ -30,7 +30,7 @@ sudo PHOTOS_DIR=/srv/photos \
 | Preflight | Refuses on non-Debian, non-root, or identical folders |
 | Packages | Docker CE + Compose plugin, curl, jq, openssl |
 | Folders | `$PHOTOS_DIR` and `$FILES_DIR`, roles kept separate |
-| Stack | Writes `/opt/filesynapse/docker-compose.yml` + a 0600 `.env` with a generated DB password, then `docker compose up -d` |
+| Stacks | Writes **two** under `/opt/filesynapse`: `immich/` (Immich's own compose, fetched from their release assets, plus a generated `.env`) and `nextcloud/` (written by this script, with its own MariaDB and Redis). Each gets a 0600 `.env` and its own generated database password. Then `docker compose up -d` in both. |
 | Tailscale | Installs if absent, joins the tailnet as `$TAILSCALE_NAME` |
 | Backup | restic to Backblaze B2, nightly systemd timer, verdict file |
 | Transfer | Optional: `rsync` from an old server, or restore the latest snapshot |

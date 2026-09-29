@@ -99,6 +99,7 @@ const DISPLAY_NAMES = {
   immich: 'Immich',
   nextcloud: 'Nextcloud',
   mariadb: 'MariaDB',
+  postgres: 'PostgreSQL',
   redis: 'Redis',
 }
 

@@ -111,56 +111,104 @@ step "Install utilities" bash -c 'apt-get install -y -qq curl jq openssl'
 # warns rather than refuses.
 
 step "Create photos folder" mkdir -p "$PHOTOS_DIR"
+# The files folder is chowned to Nextcloud's uid later, once the stack is
+# written — see "Set files ownership" below, and why it is 33 and not 1000.
 step "Create files folder" mkdir -p "$FILES_DIR"
-step "Set folder ownership" bash -c "chown -R 1000:1000 '$FILES_DIR' || true"
 
-# ── The stack ────────────────────────────────────────────────────────────
+# ── The stacks ───────────────────────────────────────────────────────────
+#
+# Two, not one.
+#
+# The single hand-rolled stack that used to be here pointed Immich at
+# Nextcloud's MariaDB. Immich requires PostgreSQL — it could never have started.
+# PLAN.md §7 says the same thing the other way round: run Immich's own compose
+# for the photo side rather than hand-rolling one.
+#
+# Separating them also gives each application its own Redis. Nextcloud uses Redis
+# for file locking and Immich uses it for job queues, and neither expects to share
+# a keyspace.
+#
+# Immich's compose is *fetched*, as a release asset, exactly as Immich's own
+# install guide instructs — never copied into this repository. It is AGPL-3.0,
+# and running it unmodified at arm's length is what keeps FileSynapse
+# proprietary (PLAN.md §13.4). Override IMMICH_COMPOSE_URL to pin a release.
 
-step "Write stack" bash -c "
-  mkdir -p '$STACK_DIR'
-  cat > '$STACK_DIR/docker-compose.yml' <<'COMPOSE'
-name: filesynapse
+IMMICH_DIR="$STACK_DIR/immich"
+NEXTCLOUD_DIR="$STACK_DIR/nextcloud"
+IMMICH_COMPOSE_URL="${IMMICH_COMPOSE_URL:-https://github.com/immich-app/immich/releases/latest/download/docker-compose.yml}"
+
+# Two passwords: these are two different database servers.
+DB_PASSWORD="$(openssl rand -hex 24)"
+IMMICH_DB_PASSWORD="$(openssl rand -hex 24)"
+
+# Where Immich's PostgreSQL data lives. It is deliberately not inside the photos
+# library, and it defaults to the stack directory — which is the OS disk. That is
+# fine for a personal library and wrong for a large one: point IMMICH_DB_DIR at a
+# data drive if the OS disk is small. Postgres data must not sit on a network
+# share.
+IMMICH_DB_DIR="${IMMICH_DB_DIR:-$IMMICH_DIR/postgres}"
+
+step "Fetch Immich's compose" bash -c "
+  mkdir -p '$IMMICH_DIR'
+  # Fetched to a temporary name and moved, so a half-downloaded file is never
+  # left where compose would read it.
+  curl -fsSL '$IMMICH_COMPOSE_URL' -o '$IMMICH_DIR/docker-compose.yml.new'
+  mv '$IMMICH_DIR/docker-compose.yml.new' '$IMMICH_DIR/docker-compose.yml'
+"
+
+step "Configure Immich" bash -c "
+  mkdir -p '$IMMICH_DB_DIR'
+  cat > '$IMMICH_DIR/.env' <<ENV
+# Written by FileSynapse provisioning. Keys are Immich's own; values are this
+# machine's. Immich reads this file directly — edit it there, not here.
+UPLOAD_LOCATION=$PHOTOS_DIR
+DB_DATA_LOCATION=$IMMICH_DB_DIR
+TZ=$TZ_NAME
+DB_PASSWORD=$IMMICH_DB_PASSWORD
+DB_USERNAME=postgres
+DB_DATABASE_NAME=immich
+ENV
+  chmod 600 '$IMMICH_DIR/.env'
+"
+
+step "Write Nextcloud stack" bash -c "
+  mkdir -p '$NEXTCLOUD_DIR'
+  cat > '$NEXTCLOUD_DIR/docker-compose.yml' <<'COMPOSE'
+name: nextcloud
 
 services:
-  immich-server:
-    image: ghcr.io/immich-app/immich-server:release
-    restart: unless-stopped
-    depends_on: [redis, database]
-    volumes:
-      - \${PHOTOS_DIR}:/usr/src/app/upload
-      - /etc/localtime:/etc/localtime:ro
-    environment:
-      DB_HOSTNAME: database
-      DB_USERNAME: postgres
-      DB_PASSWORD: \${DB_PASSWORD}
-      DB_DATABASE_NAME: immich
-      REDIS_HOSTNAME: redis
-      TZ: \${TZ_NAME}
-    ports: ['2283:2283']
-
-  immich-machine-learning:
-    image: ghcr.io/immich-app/immich-machine-learning:release
-    restart: unless-stopped
-    volumes:
-      - model-cache:/cache
-
-  nextcloud:
+  app:
     image: nextcloud:apache
+    container_name: nextcloud
     restart: unless-stopped
-    depends_on: [database]
+    mem_limit: \${NEXTCLOUD_MEMORY:-1500m}
+    # The database has to be *ready*, not merely started. Nextcloud installs its
+    # schema on first boot, and a MariaDB that is still initialising turns that
+    # into a failed install that looks like a broken image.
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
+      # The library, on its own disk. Nextcloud's data directory must be a real
+      # filesystem, not a network share.
       - \${FILES_DIR}:/var/www/html/data
     environment:
-      MYSQL_HOST: database
+      MYSQL_HOST: db
       MYSQL_DATABASE: nextcloud
       MYSQL_USER: nextcloud
       MYSQL_PASSWORD: \${DB_PASSWORD}
+      REDIS_HOST: redis
       NEXTCLOUD_TRUSTED_DOMAINS: \${TAILSCALE_NAME}
     ports: ['8080:80']
 
-  database:
+  db:
     image: mariadb:11
+    container_name: nextcloud-db
     restart: unless-stopped
+    mem_limit: \${NEXTCLOUD_DB_MEMORY:-1g}
+    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
     volumes:
       - db-data:/var/lib/mysql
     environment:
@@ -168,27 +216,43 @@ services:
       MYSQL_DATABASE: nextcloud
       MYSQL_USER: nextcloud
       MYSQL_PASSWORD: \${DB_PASSWORD}
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   redis:
     image: redis:7-alpine
+    container_name: nextcloud-redis
     restart: unless-stopped
+    mem_limit: \${NEXTCLOUD_REDIS_MEMORY:-256m}
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 20s
+      timeout: 5s
+      retries: 5
 
 volumes:
   db-data:
-  model-cache:
 COMPOSE
 
-  cat > '$STACK_DIR/.env' <<ENV
-PHOTOS_DIR=$PHOTOS_DIR
+  cat > '$NEXTCLOUD_DIR/.env' <<ENV
 FILES_DIR=$FILES_DIR
-TZ_NAME=$TZ_NAME
 TAILSCALE_NAME=$TAILSCALE_NAME
-DB_PASSWORD=$(openssl rand -hex 24)
+DB_PASSWORD=$DB_PASSWORD
 ENV
-  chmod 600 '$STACK_DIR/.env'
+  chmod 600 '$NEXTCLOUD_DIR/.env'
 "
 
-step "Start the stack" bash -c "cd '$STACK_DIR' && docker compose up -d"
+# Nextcloud writes as www-data, which is uid 33 in its image. This used to chown
+# to 1000:1000, which left the library unwritable and would have shown up as a
+# files browser that could not create anything. PLAN.md §7 records the same trap.
+step "Set files ownership" bash -c "chown -R 33:33 '$FILES_DIR'"
+
+step "Start Immich" bash -c "cd '$IMMICH_DIR' && docker compose up -d"
+step "Start Nextcloud" bash -c "cd '$NEXTCLOUD_DIR' && docker compose up -d"
 
 # ── Tailscale ────────────────────────────────────────────────────────────
 #

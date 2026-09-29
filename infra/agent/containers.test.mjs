@@ -26,10 +26,17 @@ function check(label, actual, expected) {
 
 const states = (...names) => new Map(names.map((n) => [n, 'running']))
 
-check('the default names Immich\'s server container', parseServices(DEFAULT_SERVICES)[0], {
+check("the default names Immich's server container", parseServices(DEFAULT_SERVICES)[0], {
   slug: 'immich',
-  container: 'immich-server',
+  container: 'immich_server',
 })
+
+check('the default covers both stacks', parseServices(DEFAULT_SERVICES).map((s) => s.slug), [
+  'immich',
+  'nextcloud',
+  'mariadb',
+  'postgres',
+])
 
 check('a bare slug still parses', parseServices('redis')[0], { slug: 'redis', container: null })
 

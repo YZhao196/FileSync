@@ -309,7 +309,7 @@ export function ReplaceServer() {
                     'Checking Docker',
                     `Creating photos folder at ${photoFolder}`,
                     `Creating cloud folder at ${fileFolder}`,
-                    'Writing mount configuration',
+                    "Fetching Immich's own compose, and writing Nextcloud's",
                     transfer === 'sync'
                       ? 'Syncing from the current server'
                       : 'Restoring the latest restic snapshot',

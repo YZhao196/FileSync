@@ -168,23 +168,32 @@ sudo PHOTOS_DIR=/srv/photos FILES_DIR=/srv/files \
      ./infra/provision/provision.sh
 ```
 
-It installs Docker, writes `docker-compose.yml` and `.env` to `/opt/filesynapse`,
-creates both folders, joins Tailscale, and installs a nightly restic→Backblaze
-timer. Output is one `step<TAB>state<TAB>detail` line per event, which is what
+It installs Docker, writes **two** stacks under `/opt/filesynapse` — Immich's own
+compose (fetched) and one of ours for Nextcloud, each with its own `.env` — creates
+both folders, joins Tailscale, and installs a nightly restic→Backblaze timer. Output is one `step<TAB>state<TAB>detail` line per event, which is what
 the app's progress list parses.
 
 Things to check on that first run, because nobody has:
 
-- **Immich is pointed at MariaDB, which it does not support.** `provision.sh`
-  writes one stack in which `immich-server` connects to the shared `mariadb:11`
-  as `DB_USERNAME: postgres` to a database `immich` that the script never
-  creates. Immich requires PostgreSQL — this is not a tuning problem, it is the
-  wrong database. PLAN.md §7 says to run Immich's own compose for the photo side;
-  the script hand-rolled one instead. **Immich will not start as written**, and
-  it needs fixing before the first run rather than discovered during it.
-- The same stack shares a single Redis between Immich and Nextcloud. Both use it,
-  for different things — Nextcloud for file locking, Immich for job queues — and
-  neither expects to share a keyspace. Two stacks give each its own.
+- **It writes two stacks, not one.** `/opt/filesynapse/immich` is Immich's own
+  compose, fetched from their release assets and configured by us;
+  `/opt/filesynapse/nextcloud` is one we write. They are separate because Immich
+  needs PostgreSQL and Nextcloud needs MariaDB, and because each wants its own
+  Redis — Nextcloud for file locking, Immich for job queues, and neither expects
+  to share a keyspace. PLAN.md §7 is the same instruction from the other side:
+  run Immich's own compose rather than hand-rolling one.
+- **The fetch needs GitHub reachable during setup.** If it fails, the step fails
+  and nothing is half-written — but the server is left unconfigured, so retry
+  rather than proceeding. Pin `IMMICH_COMPOSE_URL` to a release tag if you want
+  the same version on every machine.
+- **`IMMICH_DB_DIR` defaults to the stack directory, which is the OS disk.**
+  Fine for a personal library; point it at a data drive if the system disk is
+  small. Postgres data cannot live on a network share.
+- **Immich's database is its own bundled PostgreSQL** (`ghcr.io/immich-app/postgres`,
+  with the vector extension). Do not point it at the MariaDB — that is what the
+  previous version of this script did, and Immich cannot use it.
+- **`nextcloud-db` and `immich_postgres` are separate servers** with separate
+  generated passwords. Nothing is shared between the two stacks.
 
 - The Compose stack actually starts and Immich and Nextcloud come up healthy.
   The script starts them and moves on; it does not wait for health.
@@ -347,6 +356,14 @@ designs were followed.
 6. **The photo identity is the server's own id**, a string, not a number. The
    first draft hashed Immich's UUID to an int, which made favouriting,
    downloading and deleting impossible — a hash cannot be turned back into an id.
+7. **Provisioning writes two stacks, and the files library is Nextcloud's own data
+   directory.** PLAN.md §7 sketches one Nextcloud compose that reaches the user's
+   documents through bind mounts added as *external storage*. Provisioning instead
+   mounts the library as `/var/www/html/data`, which is where Nextcloud keeps
+   files natively — so the app's Files browser and Nextcloud's own UI see the same
+   tree. The practical difference is where your documents are on disk:
+   `/srv/cloud/<user>/files/…`, not `/srv/cloud/documents`. PLAN.md's sketch is
+   older than this decision.
 
 ---
 

@@ -12,8 +12,21 @@
  * restart route matched the same way, the Restart button could restart it.
  */
 
-/** The stack `provision.sh` creates. `immich` is named because it is ambiguous. */
-export const DEFAULT_SERVICES = 'immich=immich-server,nextcloud,mariadb,redis'
+/**
+ * The two stacks `provision.sh` creates, mapped onto the four things worth
+ * showing on the status panel.
+ *
+ * Every container is named explicitly because neither stack's names are
+ * guessable: Immich's compose sets `container_name: immich_server` (note the
+ * underscore) and `immich_postgres`, while ours sets `nextcloud` and
+ * `nextcloud-db`. The slugs on the left are what the panel displays, so they stay
+ * the four a person recognises rather than drifting into container names.
+ *
+ * Redis is deliberately absent. There are two of them now — one per stack — and
+ * a panel with "Redis" twice says less than nothing.
+ */
+export const DEFAULT_SERVICES =
+  'immich=immich_server,nextcloud=nextcloud,mariadb=nextcloud-db,postgres=immich_postgres'
 
 /**
  * `slug` or `slug=container`. The explicit form is the point: naming the
