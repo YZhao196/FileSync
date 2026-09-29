@@ -1,0 +1,24 @@
+# Keeps secrets and unrelated files out of the build context.
+#
+# `.env` holds AGENT_TOKEN and the Backblaze keys. It was never copied into the
+# image — the Dockerfile copies `*.mjs` and nothing else — but the whole
+# directory is still sent to the Docker daemon, and a token does not belong in a
+# context transfer at all.
+.env
+.env.*
+
+# The Laya service builds from its own context (`build: ./layla`); including it
+# here would send a Python directory to the agent's build for nothing.
+layla/
+
+# The Dockerfile copies `*.mjs`, which would otherwise sweep the test scripts
+# into the image. They are run by CI, not by the server.
+*.test.mjs
+
+# Written by the agent's test, and cleaned up unless it is killed mid-run.
+*.test-state.json
+
+# Documentation and compose files are not part of the image.
+*.md
+docker-compose.yml
+Dockerfile
