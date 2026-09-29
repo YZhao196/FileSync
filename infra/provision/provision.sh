@@ -194,6 +194,23 @@ services:
       # The library, on its own disk. Nextcloud's data directory must be a real
       # filesystem, not a network share.
       - \${FILES_DIR}:/var/www/html/data
+      # Nextcloud generates its config, its installed apps and its themes inside
+      # the application directory on first run. None of that is in the image, so
+      # without these the container's writable layer holds the only copy of
+      # config.php — which holds the database password and the instance identity.
+      # Recreate the container and Nextcloud asks to be installed again, over a
+      # data directory full of files it no longer knows how to read.
+      #
+      # Three directories rather than all of /var/www/html, deliberately: a volume
+      # over the whole application directory would pin the code at whatever
+      # version first ran, and a later image pull would stop upgrading
+      # Nextcloud. PLAN.md §7's sketch mounts the whole thing and inherits that.
+      #
+      # No backticks anywhere in this file: it is a double-quoted shell string,
+      # so they are command substitution, not punctuation.
+      - nextcloud-config:/var/www/html/config
+      - nextcloud-apps:/var/www/html/custom_apps
+      - nextcloud-themes:/var/www/html/themes
     environment:
       MYSQL_HOST: db
       MYSQL_DATABASE: nextcloud
@@ -236,6 +253,9 @@ services:
 
 volumes:
   db-data:
+  nextcloud-config:
+  nextcloud-apps:
+  nextcloud-themes:
 COMPOSE
 
   cat > '$NEXTCLOUD_DIR/.env' <<ENV
@@ -343,7 +363,19 @@ if ! /usr/local/bin/filesynapse-dump; then
 fi
 
 if restic snapshots >/dev/null 2>&1 || restic init; then
-  if restic backup '$PHOTOS_DIR' '$FILES_DIR' /var/lib/filesynapse/dumps --exclude-caches; then
+  # The stack configuration is part of the backup, not an afterthought: restoring
+  # data into a machine with no compose files and no generated database passwords
+  # is not a restore. /etc/filesynapse holds the B2 credentials and the restic
+  # password itself — which is circular but not a weakness, since reading this
+  # repository already requires that password.
+  #
+  # The Postgres data directory is excluded on purpose. It is a running database's
+  # files, and it is already covered properly by the logical dump above; copying
+  # it would add gigabytes of torn state and could restore into a database that
+  # will not start.
+  if restic backup '$PHOTOS_DIR' '$FILES_DIR' /var/lib/filesynapse/dumps \\
+       /opt/filesynapse /etc/filesynapse \\
+       --exclude-caches --exclude '$IMMICH_DB_DIR'; then
     # Retention, not just accumulation. PLAN.md §9 chose seven daily snapshots
     # deliberately; without this the repository grows for ever and the retention
     # the documentation describes does not exist. A prune failure leaves the

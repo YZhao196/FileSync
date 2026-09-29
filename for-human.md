@@ -208,6 +208,16 @@ Things to check on that first run, because nobody has:
   dump fails the whole run is marked failed, deliberately: no database, no
   backup. What to verify on the first run is that a restore actually brings
   Immich's albums back, not just the files.
+- **The backup also carries the stack configuration** — `/opt/filesynapse` and
+  `/etc/filesynapse`. Data without the compose files and generated database
+  passwords is not a restore. Immich's Postgres data directory is excluded from
+  it, because that is a running database's files and the logical dump above
+  covers it properly.
+- **Nextcloud's `config.php` is on a named volume** (`nextcloud-config`, plus
+  `-apps` and `-themes`). It is generated at first run, not shipped in the image,
+  so without those a recreated container would ask to be installed again over a
+  data directory full of files. The three directories are mounted rather than all
+  of `/var/www/html`, so that a later image pull still upgrades the code.
 - **Retention is 7 daily snapshots** (`restic forget --keep-daily 7 --prune`),
   as PLAN.md §9 chose. Worth revisiting: for a photo library, a corruption
   noticed on day 8 has no good snapshot left. `--keep-weekly` would cost little
