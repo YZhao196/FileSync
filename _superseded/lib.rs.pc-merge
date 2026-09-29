@@ -1,0 +1,60 @@
+mod credentials;
+mod desktop;
+mod http;
+mod preflight;
+mod provision;
+
+use tauri::{Manager, WindowEvent};
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .manage(desktop::TrayState(std::sync::Mutex::new(true)))
+        .manage(provision::ProvisionState::default())
+        .setup(|app| {
+            desktop::build_tray(app.handle(), true)?;
+            Ok(())
+        })
+        // Closing the window hides it while the tray is showing, so backup
+        // watching keeps running. With the tray hidden, close means quit.
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let tray_on = window
+                    .state::<desktop::TrayState>()
+                    .0
+                    .lock()
+                    .map(|v| *v)
+                    .unwrap_or(false);
+                if tray_on {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
+        .invoke_handler(tauri::generate_handler![
+            http::http_request,
+            credentials::store_credential,
+            credentials::get_credential,
+            desktop::app_info,
+            desktop::write_file,
+            desktop::notify,
+            desktop::get_autostart,
+            desktop::set_autostart,
+            desktop::get_tray_enabled,
+            desktop::set_tray_enabled,
+            desktop::set_tray_status,
+            preflight::preflight,
+            provision::start_provision,
+            provision::provision_status,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running FileSynapse");
+}

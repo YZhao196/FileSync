@@ -1,0 +1,37 @@
+# The host agent. Sits alongside the Immich and Nextcloud stacks and gives the
+# desktop app the one thing they cannot: restic state, disk usage, container
+# health and tailnet status.
+#
+#   cd infra/agent
+#   cp .env.example .env      # then edit
+#   docker compose up -d
+#
+# Reachable at http://<host>:8787 — over Tailscale only. Do not port-forward it.
+
+services:
+  agent:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      AGENT_TOKEN: "${AGENT_TOKEN:?set AGENT_TOKEN in .env}"
+      AGENT_PHOTOS_PATH: "/srv/photos"
+      AGENT_CLOUD_PATH: "/srv/cloud"
+      AGENT_SERVICES: "immich,nextcloud,mariadb,redis"
+      RESTIC_REPOSITORY: "b2:espnas-backup:/"
+      AGENT_BACKUP_STATUS: "/var/lib/filesynapse/last-backup"
+      # For `restic snapshots` to work, the agent also needs B2_ACCOUNT_ID,
+      # B2_ACCOUNT_KEY and RESTIC_PASSWORD. infra/provision/provision.sh writes
+      # exactly those to /etc/filesynapse/backup.env on the host; copy the three
+      # values into this service's .env (or add `env_file:` pointing at it) and
+      # the tile stops saying "unknown".
+    volumes:
+      # Container health and restarts
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Read-only: the agent reports on the libraries, it never writes to them
+      - /srv/photos:/srv/photos:ro
+      - /srv/cloud:/srv/cloud:ro
+      # The backup timer's verdict file. Without this mount the agent cannot see
+      # it and falls back to inferring success from snapshot age — see README.md.
+      - /var/lib/filesynapse:/var/lib/filesynapse:ro

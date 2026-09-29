@@ -1,0 +1,30 @@
+[package]
+name = "filesynapse"
+version = "0.1.0"
+description = "FileSynapse — server status, photos, and files"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "filesynapse_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+# Needed for live mode: the webview enforces CORS, and Immich/Nextcloud do not
+# send permissive headers. This plugin issues requests from Rust, which is not
+# subject to CORS. See for-human.md, step 5.
+tauri-plugin-http = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# HTTP client for CORS-bypass commands — routes requests from Rust, not the webview.
+reqwest = { version = "0.12", features = ["json"] }
+# OS keychain integration — Credential Manager on Windows, Keychain on macOS,
+# Secret Service on Linux. Credentials never touch a plaintext file (PLAN.md §11).
+# Without these features keyring 3 silently falls back to an in-memory mock store.
+keyring = { version = "3", features = ["windows-native", "apple-native", "sync-secret-service"] }

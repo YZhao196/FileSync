@@ -1,0 +1,188 @@
+==== START Fri 25/09/2026 17:16:31.23 
+--- toolchain 
+C:\Users\yongz\.cargo\bin\cargo.exe
+rustc 1.97.1 (8bab26f4f 2026-07-14)
+cargo 1.97.1 (c980f4866 2026-06-30)
+Default host: x86_64-pc-windows-msvc
+rustup home:  C:\Users\yongz\.rustup
+
+installed toolchains
+--------------------
+stable-x86_64-pc-windows-msvc (active, default)
+
+active toolchain
+----------------
+name: stable-x86_64-pc-windows-msvc
+active because: it's the default toolchain
+installed targets:
+  x86_64-pc-windows-msvc
+INFO: Could not find files for the given pattern(s).
+C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools
+v24.18.0
+--- tests 
+
+> filesynapse-app@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mD:/Onedrive/OneDrive - Deakin University/Side Projects/WIP/FileSync/app[39m
+
+ [32m✓[39m src/lib/platform.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m src/core/client.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m src/lib/format.test.ts [2m([22m[2m14 tests[22m[2m)[22m[90m 80[2mms[22m[39m
+ [32m✓[39m src/core/remote.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 50[2mms[22m[39m
+ [32m✓[39m src/screens/logic.test.ts [2m([22m[2m31 tests[22m[2m)[22m[90m 26[2mms[22m[39m
+ [32m✓[39m src/core/mock.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 7764[2mms[22m[39m
+   [33m[2m✓[22m[39m mock files[2m > [22mcreates a folder and lists it [33m330[2mms[22m[39m
+   [33m[2m✓[22m[39m mock files[2m > [22mrenames rather than duplicating [33m484[2mms[22m[39m
+   [33m[2m✓[22m[39m mock files[2m > [22mcarries a folder's contents when it moves [33m812[2mms[22m[39m
+   [33m[2m✓[22m[39m mock files[2m > [22mdeletes a folder and everything inside it [33m628[2mms[22m[39m
+   [33m[2m✓[22m[39m mock files[2m > [22mbuilds a tree that includes a folder just created [33m326[2mms[22m[39m
+   [33m[2m✓[22m[39m mock photos[2m > [22mtoggles a favourite and reflects it in the Favourites album [33m1158[2mms[22m[39m
+   [33m[2m✓[22m[39m mock photos[2m > [22madds photos to an album and grows its count [33m1175[2mms[22m[39m
+   [33m[2m✓[22m[39m mock photos[2m > [22mremoves photos everywhere, not just from the timeline [33m1232[2mms[22m[39m
+   [33m[2m✓[22m[39m mock photos[2m > [22mreturns originals as renderable bytes, not an empty blob [33m390[2mms[22m[39m
+   [33m[2m✓[22m[39m mock photos[2m > [22msearches case-insensitively and returns nothing for an empty query [33m532[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
+[2m      Tests [22m [1m[32m84 passed[39m[22m[90m (84)[39m
+[2m   Start at [22m 17:16:36
+[2m   Duration [22m 21.23s[2m (transform 850ms, setup 0ms, collect 1.65s, tests 7.93s, environment 71.95s, prepare 4.34s)[22m
+
+TEST_EXIT=0 
+--- icons 
+        Appx Creating StoreLogo.png
+        Appx Creating Square30x30Logo.png
+        Appx Creating Square44x44Logo.png
+        Appx Creating Square71x71Logo.png
+        Appx Creating Square89x89Logo.png
+        Appx Creating Square107x107Logo.png
+        Appx Creating Square142x142Logo.png
+        Appx Creating Square150x150Logo.png
+        Appx Creating Square284x284Logo.png
+        Appx Creating Square310x310Logo.png
+        ICNS Creating icon.icns
+         ICO Creating icon.ico
+         PNG Creating 32x32.png
+         PNG Creating 64x64.png
+         PNG Creating 128x128.png
+         PNG Creating 128x128@2x.png
+         PNG Creating icon.png
+         iOS Creating AppIcon-20x20@2x-1.png
+         iOS Creating AppIcon-20x20@1x.png
+         iOS Creating AppIcon-20x20@2x.png
+         iOS Creating AppIcon-20x20@3x.png
+         iOS Creating AppIcon-29x29@2x-1.png
+         iOS Creating AppIcon-29x29@1x.png
+         iOS Creating AppIcon-29x29@2x.png
+         iOS Creating AppIcon-29x29@3x.png
+         iOS Creating AppIcon-40x40@2x-1.png
+         iOS Creating AppIcon-40x40@1x.png
+         iOS Creating AppIcon-40x40@2x.png
+         iOS Creating AppIcon-40x40@3x.png
+         iOS Creating AppIcon-60x60@2x.png
+         iOS Creating AppIcon-60x60@3x.png
+         iOS Creating AppIcon-76x76@1x.png
+         iOS Creating AppIcon-76x76@2x.png
+         iOS Creating AppIcon-83.5x83.5@2x.png
+         iOS Creating AppIcon-512@2x.png
+     Android Creating mipmap-hdpi/ic_launcher_foreground.png
+     Android Creating mipmap-mdpi/ic_launcher_foreground.png
+     Android Creating mipmap-xhdpi/ic_launcher_foreground.png
+     Android Creating mipmap-xxhdpi/ic_launcher_foreground.png
+     Android Creating mipmap-xxxhdpi/ic_launcher_foreground.png
+     Android Creating mipmap-hdpi/ic_launcher_round.png
+     Android Creating mipmap-hdpi/ic_launcher.png
+     Android Creating mipmap-mdpi/ic_launcher_round.png
+     Android Creating mipmap-mdpi/ic_launcher.png
+     Android Creating mipmap-xhdpi/ic_launcher_round.png
+     Android Creating mipmap-xhdpi/ic_launcher.png
+     Android Creating mipmap-xxhdpi/ic_launcher_round.png
+     Android Creating mipmap-xxhdpi/ic_launcher.png
+     Android Creating mipmap-xxxhdpi/ic_launcher_round.png
+     Android Creating mipmap-xxxhdpi/ic_launcher.png
+ICON_EXIT=0 
+--- build 
+        Info Looking up installed tauri packages to check mismatched versions...
+     Running beforeBuildCommand `npm run build`
+
+> filesynapse-app@0.1.0 build
+> tsc --noEmit && vite build
+
+[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 69 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                 [39m[1m[2m  0.70 kB[22m[1m[22m[2m │ gzip:  0.38 kB[22m
+[2mdist/[22m[35massets/index-0a2MdrWw.css  [39m[1m[2m  5.30 kB[22m[1m[22m[2m │ gzip:  1.78 kB[22m
+[2mdist/[22m[36massets/index-IltsXtDc.js   [39m[1m[2m260.71 kB[22m[1m[22m[2m │ gzip: 77.72 kB[22m
+[32m✓ built in 1.00s[39m
+    Updating crates.io index
+     Locking 16 packages to latest compatible versions
+      Adding auto-launch v0.5.0
+      Adding dirs v4.0.0
+      Adding dirs-sys v0.3.7
+      Adding mac-notification-sys v0.6.15
+      Adding notify-rust v4.18.0
+      Adding ppv-lite86 v0.2.21
+      Adding rand v0.9.5
+      Adding rand_chacha v0.9.0
+      Adding rand_core v0.9.5
+      Adding redox_users v0.4.6
+      Adding tauri-plugin-autostart v2.5.1
+      Adding tauri-plugin-notification v2.4.0
+      Adding tauri-winrt-notification v0.7.3
+      Adding winreg v0.10.1
+      Adding zerocopy v0.8.58
+      Adding zerocopy-derive v0.8.58
+ Downloading crates ...
+  Downloaded auto-launch v0.5.0
+  Downloaded notify-rust v4.18.0
+  Downloaded tauri-plugin-autostart v2.5.1
+  Downloaded tauri-plugin-notification v2.4.0
+  Downloaded tauri-winrt-notification v0.7.3
+  Downloaded zerocopy v0.8.58
+   Compiling deranged v0.5.8
+   Compiling time-macros v0.2.32
+   Compiling windows v0.61.3
+   Compiling getrandom v0.3.4
+   Compiling tray-icon v0.24.2
+   Compiling zerocopy v0.8.58
+   Compiling winapi v0.3.9
+   Compiling winreg v0.10.1
+   Compiling time v0.3.55
+   Compiling rand_core v0.9.5
+   Compiling auto-launch v0.5.0
+   Compiling plist v1.10.1
+   Compiling cookie v0.18.2
+   Compiling cookie_store v0.22.1
+   Compiling ppv-lite86 v0.2.21
+   Compiling tauri-utils v2.9.3
+   Compiling rand_chacha v0.9.0
+   Compiling rand v0.9.5
+   Compiling reqwest v0.12.28
+   Compiling tauri-plugin v2.6.3
+   Compiling tauri-build v2.6.3
+   Compiling tauri-codegen v2.6.3
+   Compiling tauri v2.11.6
+   Compiling tauri-plugin-fs v2.5.2
+   Compiling tauri-macros v2.6.3
+   Compiling tauri-plugin-http v2.7.0
+   Compiling tauri-plugin-notification v2.4.0
+   Compiling tauri-plugin-dialog v2.7.3
+   Compiling tauri-plugin-opener v2.5.5
+   Compiling tauri-plugin-autostart v2.5.1
+   Compiling filesynapse v0.1.0 (D:\Onedrive\OneDrive - Deakin University\Side Projects\WIP\FileSync\app\src-tauri)
+   Compiling webview2-com-sys v0.38.2
+   Compiling tao v0.35.3
+   Compiling tauri-winrt-notification v0.7.3
+   Compiling notify-rust v4.18.0
+   Compiling webview2-com v0.38.2
+   Compiling wry v0.55.1
+   Compiling tauri-runtime v2.11.3
+   Compiling tauri-runtime-wry v2.11.4
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 33s
+       Built application at: D:\Onedrive\OneDrive - Deakin University\Side Projects\WIP\FileSync\app\src-tauri\target\debug\filesynapse.exe
+BUILD_EXIT=0 
+==== END Fri 25/09/2026 17:18:52.49 

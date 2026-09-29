@@ -1,0 +1,66 @@
+/*
+ * Theme tokens, lifted from the "Frontend Designs" prototype.
+ * The prototype templated these as {{ thX }} placeholders over a light/dark
+ * pair; here they are CSS custom properties switched by [data-theme].
+ */
+
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg0: #f5f5f7;
+  --surf: #ffffff;
+  --surf2: #f7f8f9;
+  --surf3: #f1f3f5;
+
+  --bd: #dcdfe4;
+
+  --tx: #172b4d;
+  --tx2: #44546f;
+  --txm: #6b778c;
+  --txd: #8993a4;
+
+  --acc: #0c66e4;
+  --accbg: #e9f2ff;
+  --ok: #22a06b;
+  --danger: #c9372c;
+  --warn: #974f0c;
+  --warnbg: #fff8f0;
+  --dangerbg: #fff5f4;
+
+  --shadow-card: 0 1px 2px rgba(9, 30, 66, 0.07);
+  --shadow-raised: 0 1px 2px rgba(9, 30, 66, 0.1);
+  --shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.3);
+
+  --skeleton: #e8ecf0;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg0: #141414;
+  --surf: #1f1f1f;
+  --surf2: #242424;
+  --surf3: #2e2e2e;
+
+  --bd: rgba(255, 255, 255, 0.1);
+
+  --tx: #ffffff;
+  --tx2: #b4b4b4;
+  --txm: #808080;
+  --txd: #565656;
+
+  --acc: #2995ff;
+  --accbg: rgba(41, 149, 255, 0.15);
+  --ok: #4bce97;
+  --danger: #ff4538;
+  --warn: #f5a623;
+  --warnbg: rgba(245, 166, 35, 0.12);
+  --dangerbg: rgba(255, 69, 56, 0.12);
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-toast: 0 4px 16px rgba(0, 0, 0, 0.6);
+
+  --skeleton: #2a2a2a;
+}

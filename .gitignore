@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Build output
+app/dist/
+app/src-tauri/target/
+app/src-tauri/gen/schemas/
+
+# Rust
+target/
+
+# Secrets — never commit a real env file. .env.example is fine.
+.env
+.env.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.local

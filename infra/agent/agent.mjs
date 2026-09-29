@@ -1,0 +1,346 @@
+#!/usr/bin/env node
+/**
+ * FileSynapse host agent.
+ *
+ * The status panel needs things Immich and Nextcloud know nothing about: restic
+ * state, disk usage, container health, tailnet state. This is the source for
+ * them, and it is the whole reason the desktop app can be useful.
+ *
+ * Design rule: every collector degrades on its own. A missing `docker`, an
+ * absent `restic`, a bare `/proc` — each returns a sane empty value rather than
+ * taking the endpoint down. A status panel that says "unknown" is useful; one
+ * that returns 500 is not. It also means the agent runs on a laptop for
+ * development, which is how its contract gets tested.
+ *
+ * No dependencies. Serve it from the compose stack so the host needs nothing
+ * installed.
+ */
+
+import { createServer } from 'node:http'
+import { execFile } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
+import { hostname, uptime as osUptime } from 'node:os'
+import { promisify } from 'node:util'
+
+const exec = promisify(execFile)
+
+const PORT = Number(process.env.AGENT_PORT ?? 8787)
+const TOKEN = process.env.AGENT_TOKEN ?? ''
+const PHOTOS_PATH = process.env.AGENT_PHOTOS_PATH ?? '/srv/photos'
+const CLOUD_PATH = process.env.AGENT_CLOUD_PATH ?? '/srv/cloud'
+const RESTIC_REPO = process.env.RESTIC_REPOSITORY ?? ''
+const SERVICES = (process.env.AGENT_SERVICES ?? 'immich,nextcloud,mariadb,redis')
+  .split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean)
+/**
+ * Where the backup timer records its own verdict. Written by
+ * `infra/provision/provision.sh`; absent on a hand-built server, in which case
+ * the agent falls back to inferring success from snapshot age.
+ */
+const BACKUP_STATUS_PATH =
+  process.env.AGENT_BACKUP_STATUS ?? '/var/lib/filesynapse/last-backup'
+
+/** How old a snapshot may be before an inferred run reads as not current. */
+const BACKUP_CURRENT_MS = 36 * 3600 * 1000
+
+/* ── shell ─────────────────────────────────────────────────────────────── */
+
+async function run(cmd, args, timeout = 8000) {
+  try {
+    const { stdout } = await exec(cmd, args, {
+      timeout,
+      windowsHide: true,
+      maxBuffer: 8 * 1024 * 1024,
+    })
+    return { ok: true, out: stdout }
+  } catch (err) {
+    return { ok: false, err: err?.message ?? String(err) }
+  }
+}
+
+/** Display names, so the app shows "MariaDB" rather than a naive capitalisation. */
+const DISPLAY_NAMES = {
+  immich: 'Immich',
+  nextcloud: 'Nextcloud',
+  mariadb: 'MariaDB',
+  redis: 'Redis',
+}
+
+const label = (slug) =>
+  DISPLAY_NAMES[slug] ?? (slug ? slug.charAt(0).toUpperCase() + slug.slice(1) : slug)
+
+/* ── collectors ────────────────────────────────────────────────────────── */
+
+async function dockerStates() {
+  const r = await run('docker', ['ps', '--format', '{{.Names}}\t{{.State}}'])
+  if (!r.ok) return null
+  const map = new Map()
+  for (const line of r.out.split('\n')) {
+    const [name, state] = line.split('\t')
+    if (name?.trim()) map.set(name.trim().toLowerCase(), (state ?? '').trim().toLowerCase())
+  }
+  return map
+}
+
+function normalizeState(raw) {
+  if (raw === 'running') return 'running'
+  if (raw === 'restarting' || raw === 'created' || raw === 'paused') return 'starting'
+  return 'stopped'
+}
+
+async function collectServices() {
+  const states = await dockerStates()
+  return SERVICES.map((svc) => {
+    const key = states ? [...states.keys()].find((n) => n.includes(svc)) : undefined
+    return { name: label(svc), state: key ? normalizeState(states.get(key)) : 'stopped' }
+  })
+}
+
+async function collectDrives() {
+  const out = []
+  for (const [label, path] of [
+    ['Photos drive', PHOTOS_PATH],
+    ['Cloud drive', CLOUD_PATH],
+  ]) {
+    let used = 0
+    let total = 0
+    const r = await run('df', ['-B1', '-P', path])
+    if (r.ok) {
+      const line = r.out.trim().split('\n').pop() ?? ''
+      const parts = line.split(/\s+/)
+      const t = Number(parts[1])
+      const u = Number(parts[2])
+      if (Number.isFinite(t) && Number.isFinite(u)) {
+        total = t
+        used = u
+      }
+    }
+    out.push({ label, usedBytes: used, totalBytes: total })
+  }
+  return out
+}
+
+async function collectBackup() {
+  const empty = {
+    lastRunAt: null,
+    lastRunOk: false,
+    nextRunAt: nextNightly(null),
+    snapshotCount: 0,
+    cloudTotalBytes: 0,
+  }
+
+  const verdict = await readBackupVerdict()
+
+  const r = await run('restic', ['snapshots', '--json'], 20000)
+  if (!r.ok) {
+    // No restic: the status file is still worth reporting, since it is the
+    // record of the last attempt rather than of the repository.
+    return verdict
+      ? { ...empty, lastRunAt: verdict.at, lastRunOk: verdict.ok }
+      : empty
+  }
+
+  let snaps
+  try {
+    const parsed = JSON.parse(r.out)
+    // Newer restic wraps the list; older returns a bare array.
+    snaps = Array.isArray(parsed) ? parsed : (parsed.snapshots ?? [])
+  } catch {
+    return empty
+  }
+  if (!snaps.length) {
+    return verdict ? { ...empty, lastRunAt: verdict.at, lastRunOk: verdict.ok } : empty
+  }
+
+  const times = snaps
+    .map((s) => new Date(s.time).getTime())
+    .filter((t) => Number.isFinite(t))
+    .sort((a, b) => b - a)
+
+  const last = times[0] ?? null
+  let cloudTotalBytes = 0
+  const stats = await run('restic', ['stats', '--json'], 20000)
+  if (stats.ok) {
+    try {
+      cloudTotalBytes = Number(JSON.parse(stats.out).total_size) || 0
+    } catch {
+      /* leave at zero */
+    }
+  }
+
+  return {
+    // The status file is the authority when it exists: it records what the
+    // timer actually did, including a run that failed after writing a
+    // snapshot's worth of data. Otherwise fall back to the newest snapshot.
+    lastRunAt: verdict ? verdict.at : last ? new Date(last).toISOString() : null,
+    lastRunOk: verdict
+      ? verdict.ok
+      : last !== null && Date.now() - last < BACKUP_CURRENT_MS,
+    nextRunAt: nextNightly(last),
+    snapshotCount: snaps.length,
+    cloudTotalBytes,
+  }
+}
+
+/**
+ * Reads the backup timer's own verdict, where one has been written.
+ *
+ * restic's repository keeps no exit status, so without this `lastRunOk` has to
+ * be *inferred* from snapshot age — which reads a run that failed after writing
+ * nothing as indistinguishable from one that never started. The provisioning
+ * script's timer writes `ok <iso>` or `failed <iso>` here, which turns the
+ * inference into a fact. Absent the file, nothing changes.
+ */
+async function readBackupVerdict() {
+  try {
+    const raw = await readFile(BACKUP_STATUS_PATH, 'utf8')
+    const [word, iso] = raw.trim().split(/\s+/)
+    if (word !== 'ok' && word !== 'failed') return null
+    const at = new Date(iso)
+    if (Number.isNaN(at.getTime())) return null
+    return { ok: word === 'ok', at: at.toISOString() }
+  } catch {
+    // No file, or unreadable — the inference path still works.
+    return null
+  }
+}
+
+function nextNightly(lastMs) {
+  const base = lastMs ? new Date(lastMs) : new Date()
+  const next = new Date(base)
+  next.setDate(next.getDate() + 1)
+  return next.toISOString()
+}
+
+async function collectNetwork() {
+  const fallback = { tailscaleConnected: false, deviceName: hostname(), tailscaleIp: '' }
+  const r = await run('tailscale', ['status', '--json'])
+  if (!r.ok) return fallback
+  try {
+    const s = JSON.parse(r.out)
+    const self = s.Self ?? {}
+    return {
+      tailscaleConnected: s.BackendState === 'Running',
+      deviceName: self.HostName ?? hostname(),
+      tailscaleIp: (self.TailscaleIPs ?? [])[0] ?? '',
+    }
+  } catch {
+    return fallback
+  }
+}
+
+async function collectUptime() {
+  let seconds = osUptime()
+  try {
+    const raw = await readFile('/proc/uptime', 'utf8')
+    const parsed = Number(raw.split(' ')[0])
+    if (Number.isFinite(parsed)) seconds = parsed
+  } catch {
+    /* not Linux, or no /proc — os.uptime() stands */
+  }
+  return {
+    uptimeSeconds: Math.round(seconds),
+    lastBootAt: new Date(Date.now() - seconds * 1000).toISOString(),
+  }
+}
+
+async function collectStatus() {
+  const [services, drives, backup, network, uptime] = await Promise.all([
+    collectServices(),
+    collectDrives(),
+    collectBackup(),
+    collectNetwork(),
+    collectUptime(),
+  ])
+  return { reachable: true, services, drives, backup, network, ...uptime }
+}
+
+/* ── actions ───────────────────────────────────────────────────────────── */
+
+function runDetached(cmd, args) {
+  try {
+    const child = exec(cmd, args, { detached: true, windowsHide: true })
+    child.unref()
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function restartService(name) {
+  const slug = name.toLowerCase()
+  const states = await dockerStates()
+  const key = states ? [...states.keys()].find((n) => n.includes(slug)) : undefined
+  if (!key) return { ok: false, reason: `no container matching "${name}"` }
+  const r = await run('docker', ['restart', key], 60000)
+  return r.ok ? { ok: true } : { ok: false, reason: r.err }
+}
+
+/* ── http ──────────────────────────────────────────────────────────────── */
+
+function authorized(req) {
+  if (!TOKEN) return true // no token configured: assume a trusted network
+  const header = req.headers.authorization ?? ''
+  return header === `Bearer ${TOKEN}`
+}
+
+function send(res, code, body) {
+  const payload = JSON.stringify(body)
+  res.writeHead(code, {
+    'content-type': 'application/json',
+    'content-length': Buffer.byteLength(payload),
+    'cache-control': 'no-store',
+  })
+  res.end(payload)
+}
+
+const server = createServer(async (req, res) => {
+  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`)
+
+  if (url.pathname === '/health') {
+    return send(res, 200, { ok: true })
+  }
+
+  if (!authorized(req)) {
+    return send(res, 401, { error: 'unauthorized' })
+  }
+
+  try {
+    if (req.method === 'GET' && url.pathname === '/api/status') {
+      return send(res, 200, await collectStatus())
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/backup') {
+      const started = runDetached('restic', [
+        '-r',
+        RESTIC_REPO || 'b2:espnas-backup:/',
+        'backup',
+        PHOTOS_PATH,
+        CLOUD_PATH,
+        '--exclude-caches',
+      ])
+      return started
+        ? send(res, 202, { started: true })
+        : send(res, 500, { error: 'could not start restic' })
+    }
+
+    const restart = url.pathname.match(/^\/api\/services\/([^/]+)\/restart$/)
+    if (req.method === 'POST' && restart) {
+      const result = await restartService(decodeURIComponent(restart[1]))
+      return result.ok
+        ? send(res, 202, { restarted: true })
+        : send(res, 404, { error: result.reason })
+    }
+
+    send(res, 404, { error: 'not found' })
+  } catch (err) {
+    send(res, 500, { error: err?.message ?? 'agent error' })
+  }
+})
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[agent] listening on :${PORT}`)
+  console.log(`[agent] photos=${PHOTOS_PATH} cloud=${CLOUD_PATH} services=${SERVICES.join(',')}`)
+  if (!TOKEN) console.warn('[agent] AGENT_TOKEN is unset — the API is unauthenticated')
+})

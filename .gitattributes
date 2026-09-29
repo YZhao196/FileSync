@@ -1,0 +1,17 @@
+# Shell scripts must stay LF. `infra/provision/provision.sh` is compiled into the
+# binary with include_str! and run under bash on the server — CRLF makes bash fail
+# with "$'\r': command not found", and it would only show up on a Linux host.
+*.sh   text eol=lf
+*.nsh  text eol=lf
+*.mjs  text eol=lf
+Dockerfile text eol=lf
+
+# Everything else normalises to LF in the repository.
+* text=auto eol=lf
+
+# Binary assets — never touched.
+*.png   binary
+*.ico   binary
+*.icns  binary
+*.woff2 binary
+*.jpg   binary
