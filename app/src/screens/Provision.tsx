@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button, FormControl, Heading, IconButton, Stack, TextInput } from '@primer/react'
 import { InlineMessage } from '@primer/react/experimental'
+import { EventList } from '../components/EventList'
 import { carbonIcon, Icon } from '../components/Icon'
 import { useToast } from '../components/Toaster'
-import type { Preflight, ProvisionEvent } from '../core/types'
+import type { Preflight } from '../core/types'
 import { compactBytes } from '../lib/format'
 import { parentOf, sameRoot } from '../lib/paths'
 import { pickFolder, preflight, provisionStatus, startProvision, type ProvisionRun } from '../native/bridge'
@@ -415,52 +416,6 @@ function Facts({ check }: { check: Preflight }) {
         </div>
       )}
     </Rows>
-  )
-}
-
-function EventList({ events }: { events: ProvisionEvent[] }) {
-  if (!events.length) return <Body>Starting…</Body>
-  return (
-    <ol
-      className="code-02"
-      style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-03)' }}
-    >
-      {events.map((e, i) => (
-        <li
-          key={`${e.step}-${i}`}
-          style={{
-            display: 'flex',
-            gap: 'var(--spacing-03)',
-            color: e.state === 'failed' ? 'var(--text-error)' : 'var(--text-secondary)',
-          }}
-        >
-          <span
-            aria-hidden="true"
-            style={{
-              display: 'inline-flex',
-              color:
-                e.state === 'ok'
-                  ? 'var(--support-success)'
-                  : e.state === 'failed'
-                    ? 'var(--support-error)'
-                    : 'var(--text-helper)',
-            }}
-          >
-            {e.state === 'ok' ? (
-              <Icon name="check" filled />
-            ) : e.state === 'failed' ? (
-              <Icon name="alert" filled />
-            ) : (
-              (e.state === 'start' ? '◌' : '–')
-            )}
-          </span>
-          <span>
-            {e.step}
-            {e.detail ? ` — ${e.detail}` : ''}
-          </span>
-        </li>
-      ))}
-    </ol>
   )
 }
 

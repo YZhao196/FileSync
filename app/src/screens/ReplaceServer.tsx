@@ -1,15 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button, FormControl, Heading, IconButton, Stack, TextInput } from '@primer/react'
 import { InlineMessage } from '@primer/react/experimental'
+import { EventList } from '../components/EventList'
 import { carbonIcon, Icon } from '../components/Icon'
 import { useToast } from '../components/Toaster'
 import { testConnection } from '../core/client'
-import type { BackupStatus } from '../core/types'
+import type { BackupStatus, Preflight } from '../core/types'
 import { useAsync } from '../hooks/useAsync'
 import { isBackupCurrent } from '../lib/backup'
 import { formatClock } from '../lib/format'
 import { sameRoot } from '../lib/paths'
-import { pickFolder } from '../native/bridge'
+import {
+  pickFolder,
+  preflight,
+  provisionStatus,
+  startProvision,
+  type ProvisionRun,
+} from '../native/bridge'
 import { useApp } from '../state/store'
 
 /**
@@ -59,8 +66,42 @@ export function ReplaceServer() {
   const [transfer, setTransfer] = useState<Transfer>('sync')
   const [disposition, setDisposition] = useState<Disposition>('keep')
 
+  const [check, setCheck] = useState<Preflight | null>(null)
+  const [run, setRun] = useState<ProvisionRun | null>(null)
+  const [running, setRunning] = useState(false)
+  const [starting, setStarting] = useState(false)
+
   const backup = status?.backup
   const cloudHealthy = isBackupCurrent(backup)
+
+  useEffect(() => {
+    preflight().then(setCheck)
+  }, [])
+
+  /**
+   * Poll only while the runner is going.
+   *
+   * Keyed on `running` rather than on the run itself, so each poll does not tear
+   * down and rebuild the interval and turn a 700ms poll into a tighter one.
+   */
+  useEffect(() => {
+    if (!running) return
+    const tick = async () => {
+      const next = await provisionStatus()
+      if (!next) return
+      setRun(next)
+      if (!next.running) {
+        setRunning(false)
+        if (!next.failed) {
+          setRole('host')
+          setStep('handover')
+        }
+      }
+    }
+    void tick()
+    const id = window.setInterval(tick, 700)
+    return () => window.clearInterval(id)
+  }, [running, setRole])
 
   const runTest = async () => {
     setTesting(true)
@@ -68,6 +109,28 @@ export function ReplaceServer() {
     setTesting(false)
     setSourceOk(res.overall === 'healthy')
     show(res.message)
+  }
+
+  const beginReplace = async () => {
+    setStarting(true)
+    const started = await startProvision({
+      photosFolder: photoFolder,
+      filesFolder: fileFolder,
+      // A temporary name. The working server keeps its own until the copy has
+      // been verified — the handover step is where the name actually moves.
+      tailscaleName: `${connection.address || 'filesynapse'}-new`,
+      transfer,
+      sourceAddress: connection.address || undefined,
+      // Backup credentials are not collected again here: the replace flow is
+      // about moving data between two machines, and the target server's bucket
+      // is configured on the handover step.
+    })
+    setStarting(false)
+    if (!started) {
+      show('Could not start provisioning — this needs the desktop app, run on the machine becoming the server')
+      return
+    }
+    setRunning(true)
   }
 
   return (
@@ -220,47 +283,87 @@ export function ReplaceServer() {
 
         {step === 'provision' && (
           <Panel title="Provision">
-            <Body>
-              These are the steps this machine will run, under a temporary Tailscale name so the
-              current server keeps answering:
-            </Body>
-            <StepList
-              lines={[
-                'Checking Docker',
-                `Creating photos folder at ${photoFolder}`,
-                `Creating cloud folder at ${fileFolder}`,
-                'Writing mount configuration',
-                transfer === 'sync'
-                  ? 'Syncing from the current server'
-                  : 'Restoring the latest restic snapshot',
-                'Starting Immich',
-                'Starting Nextcloud',
-                'Configuring Tailscale on a temporary name',
-                'Scheduling nightly backup',
-              ]}
-            />
+            {run ? (
+              <>
+                <Body>
+                  Running on this machine under a temporary Tailscale name, so the server you are
+                  using now keeps answering.
+                </Body>
+                <EventList events={run.events} />
+                {run.failed && (
+                  <Notice tone="warn">
+                    The run stopped at the step above. This machine has not taken over and the old
+                    server is untouched — the detail is in
+                    /var/log/filesynapse-provision.log on this machine.
+                  </Notice>
+                )}
+              </>
+            ) : (
+              <>
+                <Body>
+                  These are the steps this machine will run, under a temporary Tailscale name so the
+                  current server keeps answering:
+                </Body>
+                <StepList
+                  lines={[
+                    'Checking Docker',
+                    `Creating photos folder at ${photoFolder}`,
+                    `Creating cloud folder at ${fileFolder}`,
+                    'Writing mount configuration',
+                    transfer === 'sync'
+                      ? 'Syncing from the current server'
+                      : 'Restoring the latest restic snapshot',
+                    'Starting Immich',
+                    'Starting Nextcloud',
+                    'Configuring Tailscale on a temporary name',
+                    'Scheduling nightly backup',
+                  ]}
+                />
 
-            <Notice tone="info">
-              <strong>Not implemented.</strong> Provisioning is the outstanding item in
-              for-human.md — this screen documents the flow, it does not run it. Once it exists, the
-              transfer and verification happen before anything is switched over.
-            </Notice>
+                {/* The unavailable path says why rather than being absent, the
+                    same rule the "set up this computer" screen follows. */}
+                {check && !check.ok ? (
+                  <Notice tone="warn">
+                    <strong>This machine cannot be provisioned.</strong>{' '}
+                    {check.blockers.join(' ')}
+                  </Notice>
+                ) : (
+                  <Notice tone="info">
+                    Provisioning runs on <strong>this</strong> machine, the one becoming the server,
+                    and needs the desktop app — a browser cannot install packages. The old server
+                    stays up and serving until the copy is verified and the name is swapped.
+                  </Notice>
+                )}
+              </>
+            )}
 
             <Actions>
-              <Button variant="default" onClick={() => setStep('route')}>
+              <Button variant="default" onClick={() => setStep('route')} disabled={running}>
                 Back
               </Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  setRole('host')
-                  setStep('handover')
-                }}
-              >
-                Mark this PC as the server
-              </Button>
+              {!run && !(check && !check.ok) && (
+                <Button variant="primary" onClick={() => void beginReplace()} disabled={starting}>
+                  {starting ? 'Starting…' : 'Start provisioning'}
+                </Button>
+              )}
+              {run && !running && (
+                <Button
+                  variant="primary"
+                  onClick={() => (run.failed ? setRun(null) : setStep('handover'))}
+                >
+                  {run.failed ? 'Try again' : 'Continue'}
+                </Button>
+              )}
             </Actions>
-            <Footnote>That button only updates the app's own role — no provisioning has run.</Footnote>
+            <Footnote>
+              {run
+                ? running
+                  ? 'Running. The transfer is the long part — this can take a while.'
+                  : run.failed
+                    ? 'Nothing was switched over.'
+                    : 'Finished. The old server has still not been touched.'
+                : 'Nothing runs until you start it.'}
+            </Footnote>
           </Panel>
         )}
 

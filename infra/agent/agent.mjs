@@ -385,7 +385,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/backup') {
       const started = runDetached('restic', [
         '-r',
-        RESTIC_REPO || 'b2:espnas-backup:/',
+        RESTIC_REPO || 'b2:filesynapse-backup:/',
         'backup',
         PHOTOS_PATH,
         CLOUD_PATH,

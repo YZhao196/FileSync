@@ -168,24 +168,33 @@ export function ServerStatus() {
         >
           {backing ? 'Backing up…' : 'Back up now'}
         </Button>
-        <Button
-          trailingVisual={carbonIcon('external')}
-          onClick={async () => {
-            const ok = await openExternal(`http://${connection.address || 'espnas'}:9090`)
-            if (!ok) show('Cockpit runs on the server — see for-human.md')
-          }}
-        >
-          Open logs
-        </Button>
-        <Button
-          trailingVisual={carbonIcon('external')}
-          onClick={async () => {
-            const ok = await openExternal(`https://${connection.address || 'espnas'}:9443`)
-            if (!ok) show('Portainer runs on the server — see for-human.md')
-          }}
-        >
-          Containers
-        </Button>
+        {/* Both run on the server box, so with no configured address there is
+            nothing to open. They used to fall back to a hardcoded hostname,
+            which was a placeholder pretending to be a default: the button
+            appeared to work and opened a browser at a machine that may not
+            exist. A control that cannot act is not a control. */}
+        {connection.address && (
+          <>
+            <Button
+              trailingVisual={carbonIcon('external')}
+              onClick={async () => {
+                const ok = await openExternal(`http://${connection.address}:9090`)
+                if (!ok) show('Cockpit runs on the server — see for-human.md')
+              }}
+            >
+              Open logs
+            </Button>
+            <Button
+              trailingVisual={carbonIcon('external')}
+              onClick={async () => {
+                const ok = await openExternal(`https://${connection.address}:9443`)
+                if (!ok) show('Portainer runs on the server — see for-human.md')
+              }}
+            >
+              Containers
+            </Button>
+          </>
+        )}
       </Stack>
 
       <div

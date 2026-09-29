@@ -9,7 +9,7 @@
 # The app runs this. It is also runnable by hand for debugging:
 #
 #   sudo PHOTOS_DIR=/srv/photos FILES_DIR=/srv/files \
-#        TAILSCALE_NAME=espnas ./provision.sh
+#        TAILSCALE_NAME=filesynapse ./provision.sh
 #
 # Output protocol: one line per event, tab-separated —
 #

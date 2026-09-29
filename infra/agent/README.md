@@ -40,7 +40,7 @@ deliberate, and mirrors the collectors: the caller can say something specific.
 | `AGENT_PHOTOS_PATH` | `/srv/photos` | Photos drive, used for `df` and backup |
 | `AGENT_CLOUD_PATH` | `/srv/cloud` | Cloud drive |
 | `AGENT_SERVICES` | `immich,nextcloud,mariadb,redis` | Containers to report on |
-| `RESTIC_REPOSITORY` | `b2:espnas-backup:/` | Where backups go |
+| `RESTIC_REPOSITORY` | `b2:filesynapse-backup:/` | Where backups go |
 | `AGENT_BACKUP_STATUS` | `/var/lib/filesynapse/last-backup` | The timer's own verdict file, if present |
 | `AGENT_OLLAMA_URL` | `http://ollama:11434` | Vision model. Unset disables the pipeline |
 | `AGENT_LAYLA_URL` | `http://layla:8080` | Decision model. Unset disables the scoring half |

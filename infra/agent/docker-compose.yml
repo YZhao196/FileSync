@@ -19,7 +19,7 @@ services:
       AGENT_PHOTOS_PATH: "/srv/photos"
       AGENT_CLOUD_PATH: "/srv/cloud"
       AGENT_SERVICES: "immich,nextcloud,mariadb,redis"
-      RESTIC_REPOSITORY: "b2:espnas-backup:/"
+      RESTIC_REPOSITORY: "b2:filesynapse-backup:/"
       AGENT_BACKUP_STATUS: "/var/lib/filesynapse/last-backup"
       # For `restic snapshots` to work, the agent also needs B2_ACCOUNT_ID,
       # B2_ACCOUNT_KEY and RESTIC_PASSWORD. infra/provision/provision.sh writes

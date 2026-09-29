@@ -19,7 +19,11 @@ import { useApp } from '../state/store'
 export function FirstRun() {
   const { setAddress, connection, credentials, setConnectionState, go, setRole } = useApp()
 
-  const [address, setLocalAddress] = useState(connection.address || 'espnas')
+  // Empty rather than pre-filled. It used to seed with the developer's own
+  // hostname, so every new install opened with a server name that meant nothing
+  // to the person reading it — a placeholder masquerading as a default. The
+  // field's `placeholder` attribute shows the expected shape instead.
+  const [address, setLocalAddress] = useState(connection.address)
   const [state, setState] = useState<'idle' | 'testing' | 'done' | 'failed'>('idle')
   const [result, setResult] = useState<TestResult | null>(null)
 

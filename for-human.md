@@ -181,10 +181,15 @@ Things to check on that first run, because nobody has:
   and the `restore` route assumes a repository already exists at
   `b2:$B2_BUCKET:/filesynapse`.
 
-**Not covered at all:** replacing an existing server. `ReplaceServer` still
-documents its flow and then says it does not run it. The provisioning script
-accepts `TRANSFER=sync|restore` and `SOURCE_ADDRESS`, but nothing in the UI drives
-them — the replace flow is the last large piece of the plan.
+**Replacing an existing server now runs the same script.** The replace flow
+collects its own folders and a transfer route, then calls the provisioning runner
+with `TRANSFER=sync|restore` and `SOURCE_ADDRESS`, and streams the same progress
+as §5. It provisions under a temporary Tailscale name (`<old-server>-new`) so the
+working server keeps answering, and the name only moves on the handover step.
+
+It has never been run either — treat it exactly as §5 describes, and note that the
+`sync` route is the one that depends on the old server staying up for the whole
+copy.
 
 ---
 
@@ -290,7 +295,6 @@ would need them.
 
 | Feature | Notes |
 |---|---|
-| **Replace an existing server** | Documents its flow, does not run it. The last large piece — see §5 |
 | **Mobile app** | The design prototype covers mobile; only desktop is built. A separate React Native codebase (PLAN.md §11) |
 | **Code signing, notarisation, installer, auto-update** | See §1 |
 | **People, Places, a map** | Deliberately removed. Immich's own web UI already groups faces and shows locations, so the app was duplicating software you already run. The screens, their nav entries, the `/api/people` and EXIF-place calls, and their tests all came out — the photo section is Timeline and Albums, and nothing is left half-wired. Bringing them back means rewriting them |
@@ -342,6 +346,7 @@ designs were followed.
 | A host agent | Written and its HTTP contract tested. Not deployed — see §3 |
 | An optional decision pipeline | Written and verified in a browser against the placeholder backend: the cull queue and the album suggestion both work, and both vanish when it is off. Never run against real models — see §8 |
 | A provisioning script | Written, `bash -n` clean, never executed — see §5 |
+| The replace-server flow | Runs that same script with `TRANSFER` and `SOURCE_ADDRESS` and streams its progress. Verified in a browser as far as it can go, where it correctly refuses and says why. Never run for real — see §5 |
 | Live Immich / Nextcloud clients | Written, unverified — see §7 |
 
 Run it in a browser:

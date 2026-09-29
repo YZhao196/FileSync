@@ -86,7 +86,7 @@ const DEFAULTS: Persisted = {
   photoMode: 'choose',
   fileMode: 'choose',
   photoFolder: '~/Pictures/immich',
-  fileFolder: '~/Nextcloud/espnas',
+  fileFolder: '~/Nextcloud/FileSynapse',
   role: 'client',
   decisionPipeline: false,
 }
