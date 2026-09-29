@@ -53,6 +53,9 @@ jobs:
           node --check infra/agent/agent.mjs
           node --check infra/agent/decisions.mjs
           node --check infra/agent/captionStore.mjs
+          node --check infra/agent/containers.mjs
 
       - name: Test
-        run: node infra/agent/captionStore.test.mjs
+        run: |
+          node infra/agent/captionStore.test.mjs
+          node infra/agent/containers.test.mjs

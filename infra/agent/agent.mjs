@@ -22,6 +22,7 @@ import { readFile } from 'node:fs/promises'
 import { hostname, uptime as osUptime } from 'node:os'
 import { promisify } from 'node:util'
 import { createCaptionStore } from './captionStore.mjs'
+import { parseServices, resolveContainer } from './containers.mjs'
 import { createDecisions } from './decisions.mjs'
 
 const exec = promisify(execFile)
@@ -31,10 +32,8 @@ const TOKEN = process.env.AGENT_TOKEN ?? ''
 const PHOTOS_PATH = process.env.AGENT_PHOTOS_PATH ?? '/srv/photos'
 const CLOUD_PATH = process.env.AGENT_CLOUD_PATH ?? '/srv/cloud'
 const RESTIC_REPO = process.env.RESTIC_REPOSITORY ?? ''
-const SERVICES = (process.env.AGENT_SERVICES ?? 'immich,nextcloud,mariadb,redis')
-  .split(',')
-  .map((s) => s.trim().toLowerCase())
-  .filter(Boolean)
+/** Which containers to report on. See containers.mjs for why `immich` is named. */
+const SERVICES = parseServices(process.env.AGENT_SERVICES)
 /**
  * Where the backup timer records its own verdict. Written by
  * `infra/provision/provision.sh`; absent on a hand-built server, in which case
@@ -128,8 +127,8 @@ function normalizeState(raw) {
 async function collectServices() {
   const states = await dockerStates()
   return SERVICES.map((svc) => {
-    const key = states ? [...states.keys()].find((n) => n.includes(svc)) : undefined
-    return { name: label(svc), state: key ? normalizeState(states.get(key)) : 'stopped' }
+    const key = resolveContainer(states, svc)
+    return { name: label(svc.slug), state: key ? normalizeState(states.get(key)) : 'stopped' }
   })
 }
 
@@ -306,8 +305,12 @@ function runDetached(cmd, args) {
 
 async function restartService(name) {
   const slug = name.toLowerCase()
+  // Resolved through the same table the status panel uses, so the button
+  // restarts the container the tile is describing. Matching by substring here
+  // alone is how "restart Immich" could have restarted immich-machine-learning.
+  const configured = SERVICES.find((s) => s.slug === slug) ?? { slug, container: null }
   const states = await dockerStates()
-  const key = states ? [...states.keys()].find((n) => n.includes(slug)) : undefined
+  const key = resolveContainer(states, configured)
   if (!key) return { ok: false, reason: `no container matching "${name}"` }
   const r = await run('docker', ['restart', key], 60000)
   return r.ok ? { ok: true } : { ok: false, reason: r.err }
@@ -436,7 +439,10 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[agent] listening on :${PORT}`)
-  console.log(`[agent] photos=${PHOTOS_PATH} cloud=${CLOUD_PATH} services=${SERVICES.join(',')}`)
+  console.log(
+    `[agent] photos=${PHOTOS_PATH} cloud=${CLOUD_PATH} ` +
+      `services=${SERVICES.map((s) => (s.container ? `${s.slug}=${s.container}` : s.slug)).join(',')}`,
+  )
   console.log(
     `[agent] decisions=${OLLAMA_URL ? VISION_MODEL : 'off'}@${OLLAMA_URL || '-'} ` +
       `layla=${LAYLA_URL || 'off'} captions=${CAPTION_PATH}`,

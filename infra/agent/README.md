@@ -39,7 +39,7 @@ deliberate, and mirrors the collectors: the caller can say something specific.
 | `AGENT_TOKEN` | — | **Set this.** Shared secret |
 | `AGENT_PHOTOS_PATH` | `/srv/photos` | Photos drive, used for `df` and backup |
 | `AGENT_CLOUD_PATH` | `/srv/cloud` | Cloud drive |
-| `AGENT_SERVICES` | `immich,nextcloud,mariadb,redis` | Containers to report on |
+| `AGENT_SERVICES` | `immich=immich-server,nextcloud,mariadb,redis` | Containers to report on, as `slug` or `slug=container` |
 | `RESTIC_REPOSITORY` | `b2:filesynapse-backup:/` | Where backups go |
 | `AGENT_BACKUP_STATUS` | `/var/lib/filesynapse/last-backup` | The timer's own verdict file, if present |
 | `AGENT_OLLAMA_URL` | `http://ollama:11434` | Vision model. Unset disables the pipeline |
