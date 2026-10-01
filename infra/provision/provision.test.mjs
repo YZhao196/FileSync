@@ -362,6 +362,48 @@ for (const [name, body] of [
   check(`${name} parses as bash`, parsed.status === 0, parsed.stderr?.slice(0, 200))
 }
 
+/* ── The replace-server route ───────────────────────────────────────────── */
+
+console.log('\nreplacing a server — where the transfer has to happen')
+
+// A restore writes back everything the snapshot holds, and that includes
+// `$STACK_DIR` — both .env files — while Immich's PostgreSQL data directory is
+// deliberately excluded. So the database a fresh machine starts with was
+// initialised from the passwords provisioning generated, and restoring
+// afterwards would overwrite those .env files with the snapshot's older ones
+// while the databases kept the new. Neither application could reach its own
+// database, and the error reads like corruption rather than like the order of
+// two steps.
+//
+// The order is therefore the fix, and this is what stops it being undone.
+const replacing = sandbox({
+  overrides: {
+    ssh: 'exit 0',
+    rsync: 'exit 0',
+  },
+  env: { TRANSFER: 'sync', SOURCE_ADDRESS: 'old-server' },
+})
+
+const events = (replacing.result.stdout ?? '')
+  .split('\n')
+  .filter(Boolean)
+  .map((line) => line.split('\t')[0])
+
+const at = (name) => events.findIndex((step) => step === name)
+check('the replace run completes', replacing.result.status === 0, replacing.result.stdout?.slice(-200))
+check('it copies from the old server', at('Sync from the old server') >= 0)
+check('it starts Immich', at('Start Immich') >= 0)
+check(
+  'the copy happens before the stacks start, so a restore cannot overwrite their credentials',
+  at('Sync from the old server') < at('Start Immich'),
+  `order was: ${events.join(' → ')}`,
+)
+check(
+  'and the files are chowned after the copy, not before it',
+  at('Sync from the old server') < at('Set files ownership'),
+  `order was: ${events.join(' → ')}`,
+)
+
 /* ── The backup scripts, actually executed ──────────────────────────────── */
 
 console.log('\nthe backup path — the code that decides whether data is safe')
@@ -624,7 +666,7 @@ check(
 
 /* ── Cleanup ────────────────────────────────────────────────────────────── */
 
-for (const s of [first, control, failsMidBody]) {
+for (const s of [first, control, failsMidBody, replacing]) {
   try {
     rmSync(s.root, { recursive: true, force: true })
   } catch {

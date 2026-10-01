@@ -322,153 +322,25 @@ ENV
   chmod 600 '$NEXTCLOUD_DIR/.env'
 "
 
-# Nextcloud writes as www-data, which is uid 33 in its image. This used to chown
-# to 1000:1000, which left the library unwritable and would have shown up as a
-# files browser that could not create anything. PLAN.md §7 records the same trap.
-step "Set files ownership" run "chown -R 33:33 '$FILES_DIR'"
-
-step "Start Immich" run "cd '$IMMICH_DIR' && docker compose up -d"
-step "Start Nextcloud" run "cd '$NEXTCLOUD_DIR' && docker compose up -d"
-
-# ── Tailscale ────────────────────────────────────────────────────────────
+# ── Transfer and backup, before the stacks start ─────────────────────────
 #
-# Everything reaches this machine by its Tailscale name, so the name is the
-# thing that actually gets replaced later. While replacing, the machine joins
-# under a temporary name and only takes the real one once the copy is verified.
-
-if command -v tailscale >/dev/null 2>&1; then
-  skip "Install Tailscale" "already present"
-else
-  step "Install Tailscale" run 'curl -fsSL https://tailscale.com/install.sh | sh'
-fi
-
-JOIN_NAME="${TAILSCALE_TEMP_NAME:-$TAILSCALE_NAME}"
-if tailscale status >/dev/null 2>&1; then
-  skip "Join the tailnet" "already joined"
-else
-  step "Join the tailnet" run "tailscale up --hostname '$JOIN_NAME' --accept-routes"
-fi
-
-# ── The names Nextcloud answers to ───────────────────────────────────────
+# Both of these move above the containers deliberately, and the order is the
+# whole point of the arrangement.
 #
-# This is the first thing anyone hits, and it is an ordering problem rather
-# than a mistake: Nextcloud's compose is written and the container started
-# *before* this machine joins the tailnet, so NEXTCLOUD_TRUSTED_DOMAINS can
-# only carry the short name at that point. Reach the server by anything else —
-# the MagicDNS FQDN, or the 100.x address — and Nextcloud answers "Access
-# through untrusted domain", which reads like a broken install rather than a
-# setting.
+# A restore writes back everything the snapshot holds — which includes
+# $STACK_DIR, and therefore both .env files, and /etc/filesynapse. Immich's
+# PostgreSQL data directory is deliberately *excluded*, so the database a fresh
+# machine starts with was initialised from the passwords provisioning had just
+# generated. Restoring afterwards would overwrite those .env files with the
+# snapshot's older passwords while the databases kept the new ones, and neither
+# application would be able to reach its own database. Two stacks down, and the
+# error looks like corruption rather than like the order of two steps.
 #
-# Both of those are knowable only now, so they are added here. occ rather than
-# editing config.php: it is the supported path, it is idempotent, and it needs
-# no restart. Index 0 belongs to the name the compose file set, so this starts
-# at 1 and adds to it.
+# Restoring first means the databases are initialised from the configuration
+# that is actually going to be used.
 #
-# No backticks in this block, like the rest of the file — it is a double-quoted
-# shell string and they would be command substitution.
-if docker ps --format '{{.Names}}' | grep -qx nextcloud; then
-  step "Trust the tailnet names" run "
-    # A running container is not an installed Nextcloud. It takes minutes to
-    # create its schema on first boot, and occ answers 'Nextcloud is not
-    # installed yet' until it has finished — so this waits for occ to work
-    # rather than for the container to exist. Bounded at three minutes, because
-    # a wait with no ceiling is a hang, and a hang here would look like the
-    # provisioning freezing rather than like this step.
-    for attempt in \$(seq 1 36); do
-      docker exec -u www-data nextcloud php occ status >/dev/null 2>&1 && break
-      sleep 5
-    done
-
-    FQDN=\$(tailscale status --json | jq -r '.Self.DNSName' | sed 's/[.]\$//')
-    IP=\$(tailscale ip -4 | head -1)
-    index=1
-    for name in \"\$FQDN\" \"\$IP\"; do
-      [ -n \"\$name\" ] || continue
-      docker exec -u www-data nextcloud php occ config:system:set \
-        trusted_domains \"\$index\" --value=\"\$name\" >/dev/null
-      index=\$((index + 1))
-    done
-
-    # Nextcloud builds absolute URLs from these, and without them it uses
-    # whatever host the request arrived on. That is fine when the two agree and
-    # wrong the moment they do not: the app hands uploads off to Nextcloud's own
-    # web UI, and any link Nextcloud generates there would carry a host the
-    # other devices cannot resolve.
-    #
-    # The real name, not the join name — under the replace flow the machine
-    # joins temporarily and takes the real name at handover, and these should
-    # already describe where it is going to live.
-    docker exec -u www-data nextcloud php occ config:system:set \
-      overwritehost --value='$TAILSCALE_NAME' >/dev/null
-    docker exec -u www-data nextcloud php occ config:system:set \
-      overwriteprotocol --value='http' >/dev/null
-    docker exec -u www-data nextcloud php occ config:system:set \
-      overwrite.cli.url --value='http://$TAILSCALE_NAME:8080' >/dev/null
-  "
-else
-  skip "Trust the tailnet names" "no Nextcloud container is running"
-fi
-
-# ── The host agent ───────────────────────────────────────────────────────
-#
-# The desktop app's main screen is this agent's status panel, and deploying it
-# used to be three commands typed into a terminal after provisioning finished —
-# which is the thing the whole feature exists to avoid. PLAN.md §11: "Nobody
-# sees a terminal."
-#
-# The files come from the app, which embeds them — see AGENT_FILES in
-# provision.rs. They are not carried in this script because they are JavaScript
-# full of backticks, and this file forbids backticks outright for the reason
-# given at the top: in a double-quoted step body they are command substitution,
-# and they run.
-if [[ -n "${AGENT_DIR:-}" && -d "${AGENT_DIR:-}" ]]; then
-  step "Deploy the host agent" run "
-    mkdir -p '$STACK_DIR/agent'
-    # The trailing /. brings dotfiles; a bare glob would skip .dockerignore,
-    # which is the file that keeps .env out of the image's build context.
-    cp -a '$AGENT_DIR'/. '$STACK_DIR/agent/'
-
-    # Generated once and kept. Regenerating it on every run would invalidate the
-    # token the app already holds, and the symptom is a status panel that stops
-    # working after a re-provision — with nothing saying why.
-    if ! grep -qs '^AGENT_TOKEN=' '$STACK_DIR/agent/.env'; then
-      printf 'AGENT_TOKEN=%s\n' \"\$(openssl rand -hex 32)\" > '$STACK_DIR/agent/.env'
-    fi
-
-    # The host side of the library mounts. Without these the agent mounts /srv,
-    # measures a directory nothing writes to, and reports disk usage for the
-    # wrong disk — a plausible number rather than an error.
-    if ! grep -qs '^HOST_PHOTOS_DIR=' '$STACK_DIR/agent/.env'; then
-      printf 'HOST_PHOTOS_DIR=%s\n' '$PHOTOS_DIR' >> '$STACK_DIR/agent/.env'
-    fi
-    if ! grep -qs '^HOST_CLOUD_DIR=' '$STACK_DIR/agent/.env'; then
-      printf 'HOST_CLOUD_DIR=%s\n' '$FILES_DIR' >> '$STACK_DIR/agent/.env'
-    fi
-
-    # restic's own credentials, which the agent needs to report snapshot state
-    # rather than saying \"unknown\". Written with if-statements rather than
-    # shorthand: under set -e a bare test that fails takes the whole step with
-    # it, which is exactly the bug the run helper exists to stop.
-    if [ -n '$B2_KEY_ID' ]; then
-      sed -i '/^B2_ACCOUNT_ID=/d' '$STACK_DIR/agent/.env'
-      printf 'B2_ACCOUNT_ID=%s\n' '$B2_KEY_ID' >> '$STACK_DIR/agent/.env'
-    fi
-    if [ -n '$B2_APP_KEY' ]; then
-      sed -i '/^B2_ACCOUNT_KEY=/d' '$STACK_DIR/agent/.env'
-      printf 'B2_ACCOUNT_KEY=%s\n' '$B2_APP_KEY' >> '$STACK_DIR/agent/.env'
-    fi
-    if [ -n '$RESTIC_PASSWORD' ]; then
-      sed -i '/^RESTIC_PASSWORD=/d' '$STACK_DIR/agent/.env'
-      printf 'RESTIC_PASSWORD=%s\n' '$RESTIC_PASSWORD' >> '$STACK_DIR/agent/.env'
-    fi
-
-    chmod 600 '$STACK_DIR/agent/.env'
-    cd '$STACK_DIR/agent' && docker compose up -d --build
-  "
-  log "The agent's token is in $STACK_DIR/agent/.env — it is the one the app asks for."
-else
-  skip "Deploy the host agent" "no agent files were supplied — see infra/agent/README.md"
-fi
+# The fresh-install path skips this block entirely, so none of it changes what
+# a first run does.
 
 # ── Backup ───────────────────────────────────────────────────────────────
 #
@@ -644,6 +516,154 @@ if [[ -n "${SOURCE_ADDRESS:-}" && "${TRANSFER:-fresh}" != "fresh" ]]; then
       restic restore latest --target /
     "
   fi
+fi
+
+# Nextcloud writes as www-data, which is uid 33 in its image. This used to chown
+# to 1000:1000, which left the library unwritable and would have shown up as a
+# files browser that could not create anything. PLAN.md §7 records the same trap.
+step "Set files ownership" run "chown -R 33:33 '$FILES_DIR'"
+
+step "Start Immich" run "cd '$IMMICH_DIR' && docker compose up -d"
+step "Start Nextcloud" run "cd '$NEXTCLOUD_DIR' && docker compose up -d"
+
+# ── Tailscale ────────────────────────────────────────────────────────────
+#
+# Everything reaches this machine by its Tailscale name, so the name is the
+# thing that actually gets replaced later. While replacing, the machine joins
+# under a temporary name and only takes the real one once the copy is verified.
+
+if command -v tailscale >/dev/null 2>&1; then
+  skip "Install Tailscale" "already present"
+else
+  step "Install Tailscale" run 'curl -fsSL https://tailscale.com/install.sh | sh'
+fi
+
+JOIN_NAME="${TAILSCALE_TEMP_NAME:-$TAILSCALE_NAME}"
+if tailscale status >/dev/null 2>&1; then
+  skip "Join the tailnet" "already joined"
+else
+  step "Join the tailnet" run "tailscale up --hostname '$JOIN_NAME' --accept-routes"
+fi
+
+# ── The names Nextcloud answers to ───────────────────────────────────────
+#
+# This is the first thing anyone hits, and it is an ordering problem rather
+# than a mistake: Nextcloud's compose is written and the container started
+# *before* this machine joins the tailnet, so NEXTCLOUD_TRUSTED_DOMAINS can
+# only carry the short name at that point. Reach the server by anything else —
+# the MagicDNS FQDN, or the 100.x address — and Nextcloud answers "Access
+# through untrusted domain", which reads like a broken install rather than a
+# setting.
+#
+# Both of those are knowable only now, so they are added here. occ rather than
+# editing config.php: it is the supported path, it is idempotent, and it needs
+# no restart. Index 0 belongs to the name the compose file set, so this starts
+# at 1 and adds to it.
+#
+# No backticks in this block, like the rest of the file — it is a double-quoted
+# shell string and they would be command substitution.
+if docker ps --format '{{.Names}}' | grep -qx nextcloud; then
+  step "Trust the tailnet names" run "
+    # A running container is not an installed Nextcloud. It takes minutes to
+    # create its schema on first boot, and occ answers 'Nextcloud is not
+    # installed yet' until it has finished — so this waits for occ to work
+    # rather than for the container to exist. Bounded at three minutes, because
+    # a wait with no ceiling is a hang, and a hang here would look like the
+    # provisioning freezing rather than like this step.
+    for attempt in \$(seq 1 36); do
+      docker exec -u www-data nextcloud php occ status >/dev/null 2>&1 && break
+      sleep 5
+    done
+
+    FQDN=\$(tailscale status --json | jq -r '.Self.DNSName' | sed 's/[.]\$//')
+    IP=\$(tailscale ip -4 | head -1)
+    index=1
+    for name in \"\$FQDN\" \"\$IP\"; do
+      [ -n \"\$name\" ] || continue
+      docker exec -u www-data nextcloud php occ config:system:set \
+        trusted_domains \"\$index\" --value=\"\$name\" >/dev/null
+      index=\$((index + 1))
+    done
+
+    # Nextcloud builds absolute URLs from these, and without them it uses
+    # whatever host the request arrived on. That is fine when the two agree and
+    # wrong the moment they do not: the app hands uploads off to Nextcloud's own
+    # web UI, and any link Nextcloud generates there would carry a host the
+    # other devices cannot resolve.
+    #
+    # The real name, not the join name — under the replace flow the machine
+    # joins temporarily and takes the real name at handover, and these should
+    # already describe where it is going to live.
+    docker exec -u www-data nextcloud php occ config:system:set \
+      overwritehost --value='$TAILSCALE_NAME' >/dev/null
+    docker exec -u www-data nextcloud php occ config:system:set \
+      overwriteprotocol --value='http' >/dev/null
+    docker exec -u www-data nextcloud php occ config:system:set \
+      overwrite.cli.url --value='http://$TAILSCALE_NAME:8080' >/dev/null
+  "
+else
+  skip "Trust the tailnet names" "no Nextcloud container is running"
+fi
+
+# ── The host agent ───────────────────────────────────────────────────────
+#
+# The desktop app's main screen is this agent's status panel, and deploying it
+# used to be three commands typed into a terminal after provisioning finished —
+# which is the thing the whole feature exists to avoid. PLAN.md §11: "Nobody
+# sees a terminal."
+#
+# The files come from the app, which embeds them — see AGENT_FILES in
+# provision.rs. They are not carried in this script because they are JavaScript
+# full of backticks, and this file forbids backticks outright for the reason
+# given at the top: in a double-quoted step body they are command substitution,
+# and they run.
+if [[ -n "${AGENT_DIR:-}" && -d "${AGENT_DIR:-}" ]]; then
+  step "Deploy the host agent" run "
+    mkdir -p '$STACK_DIR/agent'
+    # The trailing /. brings dotfiles; a bare glob would skip .dockerignore,
+    # which is the file that keeps .env out of the image's build context.
+    cp -a '$AGENT_DIR'/. '$STACK_DIR/agent/'
+
+    # Generated once and kept. Regenerating it on every run would invalidate the
+    # token the app already holds, and the symptom is a status panel that stops
+    # working after a re-provision — with nothing saying why.
+    if ! grep -qs '^AGENT_TOKEN=' '$STACK_DIR/agent/.env'; then
+      printf 'AGENT_TOKEN=%s\n' \"\$(openssl rand -hex 32)\" > '$STACK_DIR/agent/.env'
+    fi
+
+    # The host side of the library mounts. Without these the agent mounts /srv,
+    # measures a directory nothing writes to, and reports disk usage for the
+    # wrong disk — a plausible number rather than an error.
+    if ! grep -qs '^HOST_PHOTOS_DIR=' '$STACK_DIR/agent/.env'; then
+      printf 'HOST_PHOTOS_DIR=%s\n' '$PHOTOS_DIR' >> '$STACK_DIR/agent/.env'
+    fi
+    if ! grep -qs '^HOST_CLOUD_DIR=' '$STACK_DIR/agent/.env'; then
+      printf 'HOST_CLOUD_DIR=%s\n' '$FILES_DIR' >> '$STACK_DIR/agent/.env'
+    fi
+
+    # restic's own credentials, which the agent needs to report snapshot state
+    # rather than saying \"unknown\". Written with if-statements rather than
+    # shorthand: under set -e a bare test that fails takes the whole step with
+    # it, which is exactly the bug the run helper exists to stop.
+    if [ -n '$B2_KEY_ID' ]; then
+      sed -i '/^B2_ACCOUNT_ID=/d' '$STACK_DIR/agent/.env'
+      printf 'B2_ACCOUNT_ID=%s\n' '$B2_KEY_ID' >> '$STACK_DIR/agent/.env'
+    fi
+    if [ -n '$B2_APP_KEY' ]; then
+      sed -i '/^B2_ACCOUNT_KEY=/d' '$STACK_DIR/agent/.env'
+      printf 'B2_ACCOUNT_KEY=%s\n' '$B2_APP_KEY' >> '$STACK_DIR/agent/.env'
+    fi
+    if [ -n '$RESTIC_PASSWORD' ]; then
+      sed -i '/^RESTIC_PASSWORD=/d' '$STACK_DIR/agent/.env'
+      printf 'RESTIC_PASSWORD=%s\n' '$RESTIC_PASSWORD' >> '$STACK_DIR/agent/.env'
+    fi
+
+    chmod 600 '$STACK_DIR/agent/.env'
+    cd '$STACK_DIR/agent' && docker compose up -d --build
+  "
+  log "The agent's token is in $STACK_DIR/agent/.env — it is the one the app asks for."
+else
+  skip "Deploy the host agent" "no agent files were supplied — see infra/agent/README.md"
 fi
 
 # ── Done ─────────────────────────────────────────────────────────────────
