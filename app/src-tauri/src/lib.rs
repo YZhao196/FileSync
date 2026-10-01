@@ -33,10 +33,17 @@ pub fn run() {
         // Backs `native/bridge.ts`: folder dialogs and "open in system explorer".
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        // The http plugin is registered so its Rust-side reqwest client is
-        // available (and its capability scope validated), even though requests
-        // go through our own `http_request` command rather than the plugin's
-        // built-in JS fetch wrapper.
+        // The http plugin is registered for its Rust-side reqwest client, even
+        // though requests go through our own `http_request` command rather than
+        // the plugin's built-in JS fetch wrapper.
+        //
+        // An earlier version of this comment said the plugin's capability scope
+        // was thereby "validated". It is not, and it is worth being exact: that
+        // scope constrains the plugin's own commands, and `http_request` is an
+        // app command, which Tauri does not gate at all. So the scope listing
+        // ports 2283, 8080 and 8787 describes an intent rather than a limit —
+        // the app can reach any URL it is asked to. Same shape as `write_file`
+        // in desktop.rs.
         .plugin(tauri_plugin_http::init())
         // Launch at login. The arg asks a re-launch to start hidden, which is
         // what a tray-resident app should do.

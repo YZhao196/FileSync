@@ -18,7 +18,14 @@ pub const TRAY_ID: &str = "filesynapse-tray";
 /// Whether the tray icon should be showing. Remembered in the process rather
 /// than persisted: a tray the user hid should come back at next launch, since
 /// nothing else tells them the app is running.
-#[derive(Default)]
+///
+/// Deliberately does **not** derive `Default`. The correct initial value is
+/// `true` — the tray is built visible, and `lib.rs` says so explicitly when it
+/// constructs this — while `Default` would produce `false`, which contradicts
+/// the paragraph above. A `TrayState::default()` anywhere would therefore start
+/// the app believing its tray was hidden, and the Settings toggle would show
+/// off while the icon sat in the corner. Removing the derive makes that
+/// mistake unrepresentable rather than merely discouraged.
 pub struct TrayState(pub Mutex<bool>);
 
 #[derive(Serialize)]
@@ -38,9 +45,24 @@ pub fn app_info(app: AppHandle) -> AppInfo {
 
 /// Writes bytes to a path the user chose in the save dialog.
 ///
-/// This exists instead of the fs plugin because the app writes exactly one
-/// kind of thing — the file the user just named — and granting a general
-/// filesystem capability for that would be a much larger door than needed.
+/// This exists instead of the fs plugin because the app writes exactly one kind
+/// of thing — the file the user just named — and the plugin brings reading,
+/// listing and scope configuration along for the one call.
+///
+/// **It is not the narrower door the first version of this comment claimed.**
+/// Tauri gates *plugin* commands through capabilities; commands registered with
+/// `invoke_handler` are callable by every webview unless the app manifest opts
+/// in to restricting them, which this app does not. So this writes to any path
+/// at all, where a scoped fs plugin would have refused everything outside a
+/// declared directory. What is narrower here is the set of *operations* — write
+/// and nothing else — not the set of paths.
+///
+/// Corrected rather than left standing because the claim was the reason to
+/// prefer this shape, and acting on a reason that is backwards is how a
+/// security decision quietly becomes a different one. Tightening it means
+/// declaring the commands in `build.rs` through `AppManifest::commands` and
+/// giving each a permission; worth doing deliberately, not as a side effect of
+/// reading this file.
 #[tauri::command]
 pub fn write_file(path: String, contents: Vec<u8>) -> Result<(), String> {
     std::fs::write(&path, contents).map_err(|e| format!("Could not write {path}: {e}"))
