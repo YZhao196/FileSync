@@ -27,12 +27,14 @@ import {
 
 import { Icon } from '../../components/Icon'
 import { Toast } from '../../components/Toast'
-import type { Album, Photo } from '../../core/types'
+import type { Album, Photo, PhotoId } from '../../core/types'
 import { useSession } from '../../state/session'
 import { useTheme } from '../../theme/ThemeProvider'
+import { AlbumPicker } from './AlbumPicker'
 import { PhotoTile } from './PhotoTile'
 import { PhotoViewer } from './PhotoViewer'
 import { COLUMNS, chunkRows } from './rows'
+import { SelectionBar } from './SelectionBar'
 import { usePhotoActions } from './usePhotoActions'
 
 const GAP = 2
@@ -50,6 +52,19 @@ export function AlbumDetail({ album, onBack }: { album: Album; onBack: () => voi
   // gives: the window is the wrong number in split view and on a tablet.
   const [width, setWidth] = useState(() => Dimensions.get('window').width)
   const tile = Math.max(1, Math.floor((width - GAP * 4) / COLUMNS))
+
+  const [selection, setSelection] = useState<ReadonlySet<PhotoId>>(new Set())
+  const [picking, setPicking] = useState(false)
+  const selecting = selection.size > 0
+
+  function toggle(id: PhotoId) {
+    setSelection((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const load = useCallback(async () => {
     setError(null)
@@ -100,10 +115,15 @@ export function AlbumDetail({ album, onBack }: { album: Album; onBack: () => voi
                 <Pressable
                   key={photo.id}
                   testID="album-tile"
-                  onPress={() => setViewerIndex(index)}
+                  // Same gesture as the timeline, so a photo behaves the same
+                  // way in both places — §2.5 asks for "the same viewer and
+                  // selection behaviour" and this is what that means.
+                  onPress={() => (selecting ? toggle(photo.id) : setViewerIndex(index))}
+                  onLongPress={() => setSelection((current) => new Set(current).add(photo.id))}
+                  delayLongPress={250}
                   style={{ width: tile, height: tile }}
                 >
-                  <PhotoTile photo={photo} size={tile} />
+                  <PhotoTile photo={photo} size={tile} selected={selection.has(photo.id)} />
                 </Pressable>
               ))}
             </View>
@@ -135,6 +155,27 @@ export function AlbumDetail({ album, onBack }: { album: Album; onBack: () => voi
             void load()
           }}
           actions={actions}
+        />
+      )}
+
+      {selecting && (
+        <SelectionBar
+          ids={[...selection]}
+          actions={actions}
+          onCancel={() => setSelection(new Set())}
+          onAddToAlbum={() => setPicking(true)}
+        />
+      )}
+
+      {picking && (
+        <AlbumPicker
+          ids={[...selection]}
+          onClose={() => setPicking(false)}
+          onPick={(albumId) => {
+            void actions.addToAlbum(albumId, [...selection])
+            setPicking(false)
+            setSelection(new Set())
+          }}
         />
       )}
 
