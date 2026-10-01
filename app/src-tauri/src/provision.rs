@@ -108,6 +108,22 @@ fn parse_line(line: &str) -> Option<ProvisionEvent> {
     })
 }
 
+/// Whether sudo will run without stopping to ask for a password.
+///
+/// `-n` makes sudo fail rather than prompt, which is exactly the question being
+/// asked: not "is this user an administrator" but "can this run unattended".
+/// A cached timestamp from a recent `sudo -v` counts, which is what makes the
+/// advice above actionable.
+fn can_sudo_unattended() -> bool {
+    Command::new("sudo")
+        .args(["-n", "true"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 pub fn start_provision(
     config: ProvisionConfig,
@@ -135,6 +151,32 @@ pub fn start_provision(
             detail: Some(
                 "Provisioning runs on the server itself, and only on Linux. \
                  Use this machine as a client instead."
+                    .into(),
+            ),
+        });
+        return Ok(());
+    }
+
+    // sudo needs a terminal to ask for a password, and an app launched from a
+    // menu does not have one. Without this the run starts, dies immediately and
+    // reports "exit status 1" — the explanation being a line on a stderr nobody
+    // can see. Checked before anything is claimed to have started.
+    //
+    // Refusing is right in every case the check fails, including sudo being
+    // absent: the command below invokes sudo regardless, so it would fail
+    // either way. What changes is that the user is now told why.
+    if !can_sudo_unattended() {
+        let mut run = state.0.lock().map_err(|e| e.to_string())?;
+        run.running = false;
+        run.done = true;
+        run.failed = true;
+        run.events.push(ProvisionEvent {
+            step: "preflight".into(),
+            state: "failed".into(),
+            detail: Some(
+                "Provisioning needs root, and sudo cannot ask for a password from here. \
+                 Run 'sudo -v' in a terminal once — that unlocks sudo for about fifteen \
+                 minutes — then start this again."
                     .into(),
             ),
         });
