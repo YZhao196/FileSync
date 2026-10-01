@@ -71,16 +71,36 @@ the same reason the desktop denies it.
 | | |
 |---|---|
 | First Run | Address and credentials, per-backend validation, stored in the OS keystore |
-| Photos | Timeline, three-column grid, date headers, paging |
-| Files | Browser with a breadcrumb; folders first |
-| Settings | Server, Account, About; Disconnect removes everything stored |
+| Photos | Timeline, three-column grid, date headers, filter chips, paging |
+| Photo viewer | Swipe between photos, double-tap zoom, share / download / favourite / delete |
+| Multi-select | Long-press to start; share, add to album, favourite, delete |
+| Albums | List and contents, behind a Timeline/Albums control in the Photos tab |
+| Files | Browser with a breadcrumb, folders first, sort by name/date/size, new folder |
+| File preview | Images, text and code inline; anything else offers Download |
+| File actions | Long-press for Download, Rename, Delete, Info |
+| Settings | Server, Account, Storage & cache, Appearance, About; Disconnect |
 
 ## What does not
 
-The photo viewer, multi-select, search, albums, file preview and file actions,
-and the Appearance, cache and About settings. These are **absent rather than
+Grid view and search-within-files for the Files tab; selection inside an album;
+pinch-to-zoom and swipe-to-dismiss in the viewer. These are **absent rather than
 stubbed** — a control that does nothing teaches the reader to distrust the ones
 that work.
+
+Four things are missing by decision rather than by omission, and each is
+recorded where the code is:
+
+- **Multi-select download.** The desktop already decided this: several save
+  dialogs, one after another, is worse than saying no.
+- **Creating an album.** §2.5 asks for a "New album" row, but `createAlbum` is
+  not on the shared backend interface and the desktop's position is that
+  creating one is Immich's job.
+- **Moving a file.** It needs a folder picker that can walk the tree, and a
+  `MOVE` carries an absolute `Destination` — a Move button that could not choose
+  where to move to is worse than none.
+- **An open-source licences screen.** It is a sentence in About, because the
+  honest version is a generated attribution file rather than a hand-written list
+  that is wrong by the second dependency.
 
 ## The honest position
 
