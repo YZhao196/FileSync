@@ -62,6 +62,12 @@ export function SearchPalette() {
       setQuery('')
       setPhotos([])
       setError(null)
+      // `searching` goes with them. Closing the palette mid-search cancels the
+      // request, and the cancellation is exactly what stops `.finally` from
+      // clearing this — so without it the next opening shows a spinner before
+      // a single character has been typed, and nothing short of a completed
+      // search clears it again.
+      setSearching(false)
     }
   }, [searchOpen])
 
@@ -71,6 +77,10 @@ export function SearchPalette() {
     if (!q) {
       setPhotos([])
       setError(null)
+      // Also here, and for the same reason: emptying the box cancels whatever
+      // was in flight, so the `.finally` that would have cleared this never
+      // runs and the spinner outlives the search that started it.
+      setSearching(false)
       return
     }
     let cancelled = false
