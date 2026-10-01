@@ -332,6 +332,95 @@ for (const [name, body] of [
   check(`${name} parses as bash`, parsed.status === 0, parsed.stderr?.slice(0, 200))
 }
 
+/* ── The backup scripts, actually executed ──────────────────────────────── */
+
+console.log('\nthe backup path — the code that decides whether data is safe')
+
+/**
+ * Runs the generated `filesynapse-backup` and reports what it decided.
+ *
+ * These two scripts are the most consequential thing this project writes. A
+ * snapshot that silently omits the databases restores a pile of files no
+ * application knows about, and a dump that stopped halfway is worse than none
+ * because it looks restorable. Both failure modes are the script's trailer
+ * checks noticing — so the checks are worth running rather than reading.
+ *
+ * `dumpOutput` chooses what the database containers appear to produce:
+ *   good      both dumps complete, with the trailers the script greps for
+ *   truncated a dump that stops halfway, with no trailer
+ *   refused   the database container no longer exists
+ */
+function runBackup(root, shellRoot, { dumpOutput = 'good', resticOk = true } = {}) {
+  const bin = join(root, `backup-bin-${dumpOutput}-${resticOk}`)
+  mkdirSync(bin, { recursive: true })
+
+  const dockerBody = {
+    good: `if [ "$1" = "exec" ]; then
+             case "$*" in
+               *pg_dumpall*) echo "PostgreSQL database dump complete" ;;
+               *mariadb-dump*) echo "Dump completed" ;;
+             esac
+           fi
+           exit 0`,
+    // Exits 0 — the container is fine — but produces a dump that stops partway.
+    // `docker exec` succeeding is what makes this the dangerous case: nothing
+    // has said "error", and only the trailer reveals the dump is unusable.
+    truncated: `if [ "$1" = "exec" ]; then
+                  case "$*" in
+                    *pg_dumpall*) echo "-- PostgreSQL database dump" ;;
+                    *mariadb-dump*) echo "-- MariaDB dump" ;;
+                  esac
+                fi
+                exit 0`,
+    refused: `if [ "$1" = "exec" ]; then exit 1; fi; exit 0`,
+  }[dumpOutput]
+
+  stub(bin, 'docker', dockerBody)
+  stub(bin, 'restic', resticOk ? 'exit 0' : 'exit 1')
+
+  const result = spawnSync('bash', [shellPath(join(root, 'usr/local/bin/filesynapse-backup'))], {
+    cwd: root,
+    env: { ...process.env, PATH: `${shellPath(bin)}:${process.env.PATH}` },
+    encoding: 'utf8',
+  })
+
+  const verdict = read(join(root, 'var/lib/filesynapse/last-backup'))
+  const dumps = join(root, 'var/lib/filesynapse/dumps')
+
+  return {
+    status: result.status,
+    verdict: verdict?.trim().split(/\s+/)[0] ?? null,
+    wroteImmichDump: read(join(dumps, 'immich.sql')) !== null,
+    wroteNextcloudDump: read(join(dumps, 'nextcloud.sql')) !== null,
+  }
+}
+
+const goodDump = runBackup(first.root, first.shellRoot)
+check('a clean run writes an ok verdict', goodDump.verdict === 'ok', String(goodDump.verdict))
+check('it exits 0', goodDump.status === 0)
+check('it wrote both database dumps', goodDump.wroteImmichDump && goodDump.wroteNextcloudDump)
+
+// The dangerous one. `docker exec` succeeded, so nothing reported an error, and
+// the only thing standing between this and a backup that restores nothing is
+// the trailer check.
+const halfDump = runBackup(first.root, first.shellRoot, { dumpOutput: 'truncated' })
+check(
+  'a dump with no completion trailer is refused, not snapshotted',
+  halfDump.verdict === 'failed',
+  `verdict was ${halfDump.verdict}`,
+)
+check('and the run exits non-zero so the timer records a failure', halfDump.status !== 0)
+
+const refused = runBackup(first.root, first.shellRoot, { dumpOutput: 'refused' })
+check('a database container that is gone is refused', refused.verdict === 'failed', String(refused.verdict))
+
+const noRepo = runBackup(first.root, first.shellRoot, { resticOk: false })
+check(
+  'an unreachable repository is reported rather than claiming success',
+  noRepo.verdict === 'failed',
+  `verdict was ${noRepo.verdict}`,
+)
+
 /* ── Running it twice ───────────────────────────────────────────────────── */
 
 console.log('\na second run — the thing anyone would do next')
