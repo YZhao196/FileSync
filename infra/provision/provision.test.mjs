@@ -272,6 +272,30 @@ check(
   first.result.stdout?.includes('Make sure Docker is running') === true,
 )
 
+// The contract between this script and the app, which nothing else checks.
+//
+// `emit` writes `step<TAB>state<TAB>detail`; `parse_line` in
+// `app/src-tauri/src/provision.rs` reads it back and drives the whole progress
+// list the user watches. They are two halves of one agreement written in two
+// languages, and a change to either that the other did not follow would show up
+// as a step that silently never appears.
+//
+// The Rust half is tested against the same contract. This is the half that
+// says the script still writes it.
+const STATES = new Set(['start', 'ok', 'skipped', 'failed'])
+const emitted = (first.result.stdout ?? '').split('\n').filter(Boolean)
+const malformed = emitted.filter((line) => {
+  const [step, state] = line.split('\t')
+  return !step?.trim() || !state || !STATES.has(state.trim())
+})
+
+check('it emitted some steps at all', emitted.length > 0)
+check(
+  'every line it emitted is a step the app can parse',
+  malformed.length === 0,
+  malformed.slice(0, 3).join(' | '),
+)
+
 const compose = read(join(nextcloud, 'docker-compose.yml'))
 check('the Nextcloud compose is written', compose !== null)
 check(

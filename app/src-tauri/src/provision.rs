@@ -319,3 +319,77 @@ pub fn start_provision(
 pub fn provision_status(state: tauri::State<'_, ProvisionState>) -> Result<ProvisionRun, String> {
     state.0.lock().map(|r| r.clone()).map_err(|e| e.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::parse_line;
+
+    /// The contract between `provision.sh`'s `emit` and the progress list.
+    ///
+    /// Every line the script prints goes through this, and it is the whole of
+    /// what the user watches during a five-minute install. A line it drops is a
+    /// step that never appears; a state it misreads is a step that reports the
+    /// wrong thing. Neither throws, so neither would be noticed except as a
+    /// progress list that looks subtly wrong.
+    ///
+    /// `emit` writes `printf '%s\t%s\t%s\n' "$1" "$2" "${3:-}"`, so tab-separated
+    /// with an always-present third field that may be empty.
+    #[test]
+    fn reads_a_step_with_a_detail() {
+        let event = parse_line("Install Docker\tfailed\tsee the log").expect("should parse");
+        assert_eq!(event.step, "Install Docker");
+        assert_eq!(event.state, "failed");
+        assert_eq!(event.detail.as_deref(), Some("see the log"));
+    }
+
+    #[test]
+    fn reads_a_step_with_an_empty_detail_as_no_detail() {
+        // `emit "$name" start` produces a trailing tab and nothing after it.
+        // An empty string here would render as an empty second line under every
+        // step that has nothing to say.
+        let event = parse_line("Install Docker\tstart\t").expect("should parse");
+        assert_eq!(event.state, "start");
+        assert_eq!(event.detail, None);
+    }
+
+    /// The four states the script actually emits.
+    #[test]
+    fn accepts_exactly_the_states_the_script_uses() {
+        for state in ["start", "ok", "skipped", "failed"] {
+            assert!(parse_line(&format!("a\t{state}\t")).is_some(), "{state} should parse");
+        }
+    }
+
+    #[test]
+    fn ignores_a_state_the_script_never_emits() {
+        // Anything else is stderr, or output from something the script ran, and
+        // must not be drawn as a step.
+        assert!(parse_line("a\twarning\tsomething").is_none());
+        assert!(parse_line("a\tdone\t").is_none());
+    }
+
+    #[test]
+    fn ignores_a_line_that_is_not_a_step() {
+        assert!(parse_line("just some output").is_none());
+        assert!(parse_line("").is_none());
+        assert!(parse_line("\t\t").is_none(), "an empty step name is not a step");
+    }
+
+    #[test]
+    fn keeps_a_detail_that_contains_tabs() {
+        // `splitn(3)` rather than `split`, so a detail with tabs in it survives
+        // rather than being truncated at the first one.
+        let event = parse_line("a\tfailed\tone\ttwo").expect("should parse");
+        assert_eq!(event.detail.as_deref(), Some("one\ttwo"));
+    }
+
+    #[test]
+    fn trims_around_the_fields_but_not_the_state() {
+        // The script does not pad, but a stray space should not turn a real
+        // step into an unparsed line.
+        let event = parse_line("  Backup  \t  ok  \t  done  ").expect("should parse");
+        assert_eq!(event.step, "Backup");
+        assert_eq!(event.state, "ok");
+        assert_eq!(event.detail.as_deref(), Some("done"));
+    }
+}
