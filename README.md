@@ -44,6 +44,11 @@ order. It lives **outside this repository** — in `Side Projects/`, two levels 
 from here — deliberately, so it survives a fresh clone. Links to it from inside
 the repo are relative paths out of the tree.
 
+## Installing it
+
+[`INSTALL.md`](INSTALL.md) — the server first, then Windows, Linux, macOS and
+Android, with what is verified and what has never been run stated per platform.
+
 ## Running it
 
 ```bash
