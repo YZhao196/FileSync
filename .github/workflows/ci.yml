@@ -184,9 +184,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 22, not 20. Something in the Expo tree declares `node: ^22.13.0 || >=24`
+      # and `npm ci` warns EBADENGINE against 20 on every run — a warning today
+      # and an install failure the next time that range tightens.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: mobile/package-lock.json
 

@@ -25,7 +25,7 @@
  * read here and never bundled.
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -70,8 +70,29 @@ const VIEW_BOX = '0 0 32 32'
 /** Elements react-native-svg can draw that Carbon's 16px icons actually use. */
 const SUPPORTED = new Set(['path', 'circle', 'rect', 'polygon'])
 
+/**
+ * Carbon's directory names are not all lower case — the archive icon lives in
+ * `ZIP`, not `zip` — and Windows resolves either because its filesystem is
+ * case-insensitive. Linux does not, so the mismatch was invisible on the
+ * machine this was written on and failed the moment CI ran it.
+ *
+ * Resolved by lookup rather than by correcting the one name that happened to be
+ * wrong: hardcoding `ZIP` fixes today's failure and leaves the next one to be
+ * found the same way, in CI, by someone who did not write the mapping.
+ */
+let directories = null
+
+function resolveDirectory(name) {
+  if (!directories) {
+    directories = new Map(readdirSync(CARBON).map((entry) => [entry.toLowerCase(), entry]))
+  }
+  const actual = directories.get(name.toLowerCase())
+  if (!actual) throw new Error(`@carbon/icons has no "${name}"`)
+  return actual
+}
+
 async function load(carbonName) {
-  const file = join(CARBON, carbonName, '16.js')
+  const file = join(CARBON, resolveDirectory(carbonName), '16.js')
   let descriptor
   try {
     descriptor = (await import(pathToFileURL(file).href)).default
