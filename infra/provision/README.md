@@ -7,7 +7,7 @@ executes. It is also runnable by hand, which is how it should be tested first.
 
 > **Never executed.** The script has been syntax-checked (`bash -n`) and nothing
 > more — no machine has run it. Treat the first run as a test, on a machine you
-> can rebuild. See [for-human.md](../../for-human.md) §5.
+> can rebuild. See [filesynapsetodo.md](../../../../filesynapsetodo.md) §5.
 
 ## Run it
 

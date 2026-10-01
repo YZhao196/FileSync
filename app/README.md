@@ -28,7 +28,7 @@ code path by which a user sees fabricated data.
 **As a desktop app** — `npx tauri dev`, or `npx tauri build` for installers.
 This is the real thing: CORS-free HTTP, the OS keychain, the tray,
 launch-at-login, notifications, and the provisioning runner. Requires the Rust
-toolchain; see [../for-human.md](../for-human.md).
+toolchain; see [`filesynapsetodo.md`](../../../filesynapsetodo.md).
 
 ## Installer
 

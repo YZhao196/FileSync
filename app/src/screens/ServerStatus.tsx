@@ -39,7 +39,7 @@ export function ServerStatus() {
       show(`${svc.name} restarted`)
       reload()
     } catch {
-      show(`Could not restart ${svc.name} — see for-human.md`)
+      show(`Could not restart ${svc.name} — see filesynapsetodo.md`)
     }
   }
 
@@ -179,7 +179,7 @@ export function ServerStatus() {
               trailingVisual={carbonIcon('external')}
               onClick={async () => {
                 const ok = await openExternal(`http://${connection.address}:9090`)
-                if (!ok) show('Cockpit runs on the server — see for-human.md')
+                if (!ok) show('Cockpit runs on the server — see filesynapsetodo.md')
               }}
             >
               Open logs
@@ -188,7 +188,7 @@ export function ServerStatus() {
               trailingVisual={carbonIcon('external')}
               onClick={async () => {
                 const ok = await openExternal(`https://${connection.address}:9443`)
-                if (!ok) show('Portainer runs on the server — see for-human.md')
+                if (!ok) show('Portainer runs on the server — see filesynapsetodo.md')
               }}
             >
               Containers

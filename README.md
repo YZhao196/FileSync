@@ -28,7 +28,10 @@ development mock.
 | Provisioning | Written, compiled into the binary; **never run** |
 | Live Immich / Nextcloud clients | Written, **unverified** |
 
-[`for-human.md`](for-human.md) lists what is left, in priority order.
+[`filesynapsetodo.md`](../../filesynapsetodo.md) lists what is left, in priority
+order. It lives **outside this repository** — in `Side Projects/`, two levels up
+from here — deliberately, so it survives a fresh clone. Links to it from inside
+the repo are relative paths out of the tree.
 
 ## Running it
 
@@ -67,7 +70,8 @@ directly. `app/README.md` covers the four stylesheets and what each is for.
 ## Reading order, if you are new
 
 1. [`PLAN.md`](PLAN.md) — every decision and the reason behind it. Start here.
-2. [`for-human.md`](for-human.md) — what still needs a person.
+2. [`filesynapsetodo.md`](../../filesynapsetodo.md) — what still needs a person
+   (`Side Projects/`, outside the repo).
 3. [`UI-DESKTOP.md`](UI-DESKTOP.md) — screen specs. Older than the designs where
    they disagree.
 4. [`app/README.md`](app/README.md) — running and testing the client.

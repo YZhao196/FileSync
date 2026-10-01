@@ -20,7 +20,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 # Needed for live mode: the webview enforces CORS, and Immich/Nextcloud do not
 # send permissive headers. This plugin issues requests from Rust, which is not
-# subject to CORS. See for-human.md, step 5.
+# subject to CORS. See filesynapsetodo.md, step 5.
 tauri-plugin-http = "2"
 # Launch at login, and notifying when a backup fails.
 tauri-plugin-autostart = "2"

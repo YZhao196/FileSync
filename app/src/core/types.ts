@@ -113,7 +113,7 @@ export interface Connection {
   address: string
   immichUrl: string | null
   nextcloudUrl: string | null
-  /** The host agent that reports restic/disk/container state. See for-human.md. */
+  /** The host agent that reports restic/disk/container state. See filesynapsetodo.md. */
   agentUrl: string | null
 }
 
@@ -177,7 +177,7 @@ export interface ProvisionEvent {
  * It is an option rather than a capability everything depends on, so it is off
  * until the user turns it on: Immich's own ML container already covers semantic
  * search, and a second model doing the same work on the same machine is the
- * duplication the project cuts. See for-human.md.
+ * duplication the project cuts. See filesynapsetodo.md.
  */
 export type VisionState = 'ok' | 'model-missing' | 'unavailable'
 

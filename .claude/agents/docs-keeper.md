@@ -1,6 +1,6 @@
 ---
 name: docs-keeper
-description: Use when a change alters a documented decision, adds or finishes a human-action item, or when PLAN.md, UI-DESKTOP.md, UI-MOBILE.md, for-human.md or a README has drifted from the code.
+description: Use when a change alters a documented decision, adds or finishes a human-action item, or when PLAN.md, UI-DESKTOP.md, UI-MOBILE.md, filesynapsetodo.md or a README has drifted from the code.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 
@@ -15,7 +15,7 @@ them.
 | `PLAN.md` | Every decision *and its reason*. Infrastructure, licensing, costs, open items |
 | `UI-DESKTOP.md` | Desktop screen specs — older than the designs where they disagree |
 | `UI-MOBILE.md` | Mobile screen specs for a client that does not exist yet |
-| `for-human.md` | What needs a person, ordered by priority, with commands |
+| `filesynapsetodo.md` | What needs a person, ordered by priority, with commands |
 | `infra/agent/README.md` | The agent's HTTP contract and configuration |
 | `infra/provision/README.md` | Provisioning |
 | `app/README.md` | Running and testing the client |
@@ -36,7 +36,7 @@ commercialisation constraints, they are the reason the architecture looks the wa
 it does, and they are easy to erode one reasonable-sounding edit at a time. If a
 change appears to conflict with them, raise it rather than editing them.
 
-**Finish `for-human.md` items, do not just tick them.** When something is done,
+**Finish `filesynapsetodo.md` items, do not just tick them.** When something is done,
 remove it and update the "What exists" table. A stale human-action item wastes
 the reader's time on work that is already complete.
 
@@ -45,7 +45,7 @@ explicit `UNVERIFIED:` marker naming what needs checking. Preserve that. A
 confident-sounding document about something never run against a real server is
 worse than no document.
 
-**Priority order in `for-human.md` is load-bearing.** Things that block
+**Priority order in `filesynapsetodo.md` is load-bearing.** Things that block
 everything else come first, and things someone can do in five minutes come before
 things that need hardware.
 

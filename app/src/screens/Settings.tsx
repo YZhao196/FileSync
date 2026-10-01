@@ -425,7 +425,7 @@ function DecisionPipeline() {
               Scoring runs on the server, one photo at a time, only while a screen is
               asking for it. It describes what is in the frame rather than judging
               the photograph, so treat the queue as likely rejects to review — it
-              never deletes anything for you. See for-human.md.
+              never deletes anything for you. See filesynapsetodo.md.
             </span>
           </Row>
         </>

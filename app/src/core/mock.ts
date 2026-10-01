@@ -425,7 +425,7 @@ class MockFileBackend implements FileBackend {
       return new Blob([svg], { type: 'image/svg+xml' })
     }
     if (isPreviewable(node.mime)) {
-      return new Blob([`Placeholder contents for ${path}.\n\nNo server is connected — see for-human.md.\n`], {
+      return new Blob([`Placeholder contents for ${path}.\n\nNo server is connected — see filesynapsetodo.md.\n`], {
         type: node.mime,
       })
     }

@@ -13,7 +13,7 @@ layer here to get wrong, and nothing to keep in step when Laya's API moves.
     -> { "answers": { "<id>": { "choice" | "score" | "noul": ... } } }
 
 UNVERIFIED: written from Laya's documented Python interface. It has never been
-run — see for-human.md. If it is wrong about the interface, this file and
+run — see filesynapsetodo.md. If it is wrong about the interface, this file and
 `callLaya` in decisions.mjs are the only two places that need to change.
 """
 

@@ -409,7 +409,7 @@ behind a Settings toggle, off by default, served by the host agent rather than a
 service of its own. It is a genuine option rather than a duplicate because it
 does something Immich does not (rating for a cull queue, suggesting an album),
 and because it is off: nothing is scheduled, and an unused pipeline costs
-nothing. See `infra/agent/README.md` and for-human.md §8.
+nothing. See `infra/agent/README.md` and filesynapsetodo.md §8.
 
 ### "Set as server" — the install experience as a button
 

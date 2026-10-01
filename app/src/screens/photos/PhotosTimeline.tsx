@@ -128,7 +128,7 @@ function NativeFolder({
             trailingVisual={carbonIcon('external')}
             onClick={async () => {
               const ok = await revealInSystem(path)
-              if (!ok) show('Opening a folder needs the desktop shell — see for-human.md')
+              if (!ok) show('Opening a folder needs the desktop shell — see filesynapsetodo.md')
             }}
           >
             {`Open in ${FILE_MANAGER}`}

@@ -10,7 +10,7 @@ owned. `app/` is the desktop client; `infra/` is the server side.
 | `PLAN.md` | Every decision **and its reason**. Infrastructure, licensing, costs, open items |
 | `FileSync Frontend Designs.html` | The visual source of truth. Newer than the markdown specs where they disagree |
 | `UI-DESKTOP.md` · `UI-MOBILE.md` | Screen specs. Mobile is unbuilt |
-| `for-human.md` | What needs a person, ordered by priority |
+| `../../filesynapsetodo.md` | What needs a person, ordered by priority. **Outside this repo** — it now lives in `Side Projects/`, deliberately, so it survives a fresh clone. It was `for-human.md` |
 | `.claude/agents/` | Area-specific subagents — see [the index](.claude/AGENTS.md) |
 
 Read the relevant spec before changing behaviour in an area, and update it in the
@@ -44,7 +44,7 @@ needs checking. A labelled guess is useful; an unlabelled one is a trap.
 
 **Build around blockers.** Work that needs a human — installing a toolchain,
 deploying a service, supplying credentials — gets a placeholder and a
-`for-human.md` entry, and the rest proceeds. Stop and ask only when a *decision*
+`filesynapsetodo.md` entry, and the rest proceeds. Stop and ask only when a *decision*
 is needed, not when an *action* is.
 
 ## Conventions the code depends on

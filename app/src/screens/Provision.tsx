@@ -294,7 +294,7 @@ export function Provision() {
               lines={[
                 'Open Immich once and create the admin account — it has no users yet.',
                 'Open Nextcloud once and create the admin account.',
-                'Deploy the host agent so this app can show real status (for-human.md §2).',
+                'Deploy the host agent so this app can show real status (filesynapsetodo.md §2).',
                 'Point your phone at Immich and let it upload.',
               ]}
             />

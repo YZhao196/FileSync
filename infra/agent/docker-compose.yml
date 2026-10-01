@@ -111,7 +111,7 @@ services:
   #
   # UNVERIFIED: never built or run. The Dockerfile installs `laya` from PyPI and
   # serves its own `predict` almost unchanged, so there is very little here to be
-  # wrong — but "very little" is not "checked". See for-human.md §8.
+  # wrong — but "very little" is not "checked". See filesynapsetodo.md §8.
   #
   # It publishes no port. Only the agent talks to it, over the compose network,
   # which is strictly better than exposing a service that accepts arbitrary state.

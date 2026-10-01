@@ -1,6 +1,6 @@
 # Laya — the decision model behind the optional pipeline's scoring and routing.
 #
-# UNVERIFIED: never built or run. See for-human.md §8.
+# UNVERIFIED: never built or run. See filesynapsetodo.md §8.
 #
 # This image is large — `laya` pulls torch, and the multilingual checkpoint is
 # another couple of gigabytes on first use — which is the whole reason it is

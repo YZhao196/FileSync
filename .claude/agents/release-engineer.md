@@ -60,5 +60,5 @@ for hosting — the client does not need Docker.
 
 **Do not publish anything without being asked.** No releases, no tags, no push
 to a remote, no registry upload. Do not enable auto-merge. If a step needs an
-account, a certificate or a payment, it is a `for-human.md` item, not something
+account, a certificate or a payment, it is a `filesynapsetodo.md` item, not something
 to work around.
