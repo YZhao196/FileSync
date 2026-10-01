@@ -23,8 +23,20 @@ pub struct HttpRequest {
 pub struct HttpResponse {
     status: u16,
     status_text: String,
-    /// Raw response bytes. The JS side converts this `number[]` to `Uint8Array`.
-    body_bytes: Vec<u8>,
+    /// The response body, base64-encoded.
+    ///
+    /// It used to be a `Vec<u8>`, which serde serialises as a JSON array of
+    /// numbers — roughly four characters per byte, plus an array element and a
+    /// separator for each. That is unnoticeable for a status object and ruinous
+    /// for a photograph: a 10 MB original became a ~40 MB JSON array, parsed
+    /// number by number on the JS thread. base64 is one string at four thirds
+    /// of the payload, and the decoder on the other side is four lines.
+    ///
+    /// `tauri::ipc::Response` would be better still — raw bytes, no encoding at
+    /// all — but it carries no envelope, so the status and content type would
+    /// have to travel by another route. Not worth the redesign for a factor of
+    /// 1.33.
+    body_base64: String,
     content_type: Option<String>,
 }
 
@@ -35,8 +47,20 @@ pub struct HttpResponse {
 /// reason this exists.
 #[tauri::command]
 pub async fn http_request(req: HttpRequest) -> Result<HttpResponse, String> {
+    // Two timeouts, not one, and the distinction matters.
+    //
+    // `reqwest`'s `timeout` covers the whole exchange including the body, so a
+    // single ten-second value meant a full-resolution photo — or any file worth
+    // downloading — was abandoned partway through. It failed in ten seconds
+    // whether the server was unreachable or merely slow, which reads as a
+    // network fault either way.
+    //
+    // Connecting is the part worth failing fast on: an unreachable server
+    // should say so immediately rather than hold a screen open. Receiving a
+    // body is the part that legitimately takes as long as it takes.
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(300))
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
 
@@ -64,16 +88,36 @@ pub async fn http_request(req: HttpRequest) -> Result<HttpResponse, String> {
         .and_then(|v| v.to_str().ok())
         .map(|s| s.split(';').next().unwrap_or(s).trim().to_string());
 
-    let body_bytes = resp
+    let body = resp
         .bytes()
         .await
-        .map_err(|e| format!("Failed to read response body: {e}"))?
-        .to_vec();
+        .map_err(|e| format!("Failed to read response body: {e}"))?;
 
     Ok(HttpResponse {
         status,
         status_text,
-        body_bytes,
+        body_base64: base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &body),
         content_type,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    /// The encoding the JS side has to undo, checked against the values that
+    /// catch a wrong alphabet or missing padding.
+    #[test]
+    fn encodes_a_body_the_way_the_decoder_expects() {
+        let encode = |bytes: &[u8]| {
+            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, bytes)
+        };
+
+        assert_eq!(encode(b""), "");
+        // One, two and three bytes are the three padding cases.
+        assert_eq!(encode(b"f"), "Zg==");
+        assert_eq!(encode(b"fo"), "Zm8=");
+        assert_eq!(encode(b"foo"), "Zm9v");
+        // The top of the range, which is where a signed/unsigned slip shows up.
+        assert_eq!(encode(&[0xff, 0xfe, 0xfd]), "//79");
+        assert_eq!(encode(&[0x00, 0x01, 0x02]), "AAEC");
+    }
 }

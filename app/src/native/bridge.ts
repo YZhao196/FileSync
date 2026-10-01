@@ -124,6 +124,29 @@ export interface NativeResponse {
  * (Record<string, string>), `body` (string). `AbortSignal` is silently ignored
  * on the native path; the Rust command carries its own 10 s timeout.
  */
+/**
+ * The other half of the Rust side's base64 encoding.
+ *
+ * Exported and tested on its own because it is the one place a body could be
+ * silently mangled: a byte lost here corrupts every photograph and every
+ * WebDAV response at once, and the symptom would be a broken image rather than
+ * anything pointing at this function.
+ *
+ * The return type names `ArrayBuffer` rather than leaving it generic: a plain
+ * `Uint8Array` is `Uint8Array<ArrayBufferLike>`, which includes
+ * `SharedArrayBuffer` and is therefore not assignable to `BlobPart`. Constructed
+ * from a length it is always a plain `ArrayBuffer`, so saying so is accurate as
+ * well as necessary.
+ */
+export function decodeBase64(value: string): Uint8Array<ArrayBuffer> {
+  if (!value) return new Uint8Array(0)
+
+  const binary = atob(value)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
 export async function nativeFetch(
   url: string,
   init: {
@@ -147,11 +170,11 @@ export async function nativeFetch(
       })) as {
         status: number
         statusText: string
-        bodyBytes: number[]
+        bodyBase64: string
         contentType: string | null
       }
 
-      const bytes = new Uint8Array(result.bodyBytes)
+      const bytes = decodeBase64(result.bodyBase64)
 
       return {
         status: result.status,

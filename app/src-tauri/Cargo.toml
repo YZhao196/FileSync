@@ -31,6 +31,12 @@ tauri-plugin-notification = "2"
 tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Response bodies cross the IPC boundary base64-encoded rather than as a
+# `Vec<u8>`. Serde turns that into a JSON array of numbers — several bytes of
+# text per byte of payload — which is fine for a status object and not fine for
+# a photograph. A dependency rather than twenty hand-rolled lines: base64's
+# alphabet and padding are exactly the sort of thing to get subtly wrong.
+base64 = "0.22"
 # HTTP client for CORS-bypass commands — routes requests from Rust, not the webview.
 reqwest = { version = "0.12", features = ["json"] }
 # OS keychain integration — Credential Manager on Windows, Keychain on macOS,
