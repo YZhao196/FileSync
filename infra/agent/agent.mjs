@@ -17,8 +17,8 @@
  */
 
 import { createServer } from 'node:http'
-import { execFile } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
+import { execFile, spawn } from 'node:child_process'
+import { access, readFile } from 'node:fs/promises'
 import { hostname, uptime as osUptime } from 'node:os'
 import { promisify } from 'node:util'
 import { createCaptionStore } from './captionStore.mjs'
@@ -41,6 +41,14 @@ const SERVICES = parseServices(process.env.AGENT_SERVICES)
  */
 const BACKUP_STATUS_PATH =
   process.env.AGENT_BACKUP_STATUS ?? '/var/lib/filesynapse/last-backup'
+/**
+ * The backup wrapper provisioning installs. It dumps both databases before it
+ * snapshots anything, so a run started from the app uses it when it is present.
+ * Overridable for the same reason everything else here is: so the two paths can
+ * be exercised without a server.
+ */
+const BACKUP_WRAPPER =
+  process.env.AGENT_BACKUP_WRAPPER ?? '/usr/local/bin/filesynapse-backup'
 
 /** How old a snapshot may be before an inferred run reads as not current. */
 const BACKUP_CURRENT_MS = 36 * 3600 * 1000
@@ -294,10 +302,38 @@ async function collectStatus() {
 
 /* ── actions ───────────────────────────────────────────────────────────── */
 
+/**
+ * Starts a command and returns at once, leaving it running.
+ *
+ * `spawn`, not the promisified `execFile` the rest of this file uses. The
+ * previous version called `exec` here and had two bugs, both of which the app
+ * could reach from its main screen:
+ *
+ *   - `exec` returns a Promise, so the `.unref()` on the next line threw
+ *     synchronously. The `catch` swallowed it and returned false, so "Back up
+ *     now" failed on every host, whether or not restic was installed.
+ *   - That rejected Promise had no handler. On a host without restic it was an
+ *     unhandled rejection, which kills the process — so the whole agent died,
+ *     not just the backup, and every later request failed.
+ *
+ * A missing binary arrives asynchronously as an `error` event, so a listener is
+ * required even here, where the child is never awaited.
+ */
 function runDetached(cmd, args) {
   try {
-    const child = exec(cmd, args, { detached: true, windowsHide: true })
+    const child = spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true })
+    child.on('error', (e) => console.error(`[agent] ${cmd} could not start: ${e.message}`))
     child.unref()
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, reason: e?.message ?? String(e) }
+  }
+}
+
+/** Whether a path exists — used to prefer the backup wrapper when it is there. */
+async function exists(path) {
+  try {
+    await access(path)
     return true
   } catch {
     return false
@@ -387,17 +423,46 @@ const server = createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/backup') {
-      const started = runDetached('restic', [
-        '-r',
-        RESTIC_REPO || 'b2:filesynapse-backup:/',
-        'backup',
-        PHOTOS_PATH,
-        CLOUD_PATH,
-        '--exclude-caches',
-      ])
-      return started
-        ? send(res, 202, { started: true })
-        : send(res, 500, { error: 'could not start restic' })
+      // Prefer the wrapper that provisioning installs.
+      //
+      // It dumps Immich's PostgreSQL and Nextcloud's MariaDB before it snapshots
+      // anything, and writes the verdict file the status panel reads. Invoking
+      // restic directly — as this used to — backs up the two folders and neither
+      // database, and still reports success. That is a backup which restores a
+      // pile of files no application knows about, and it is worse than no backup
+      // because it is trusted.
+      //
+      // The direct call remains for a server built by hand, where no wrapper
+      // exists. It is the lesser of the two, and it says so in the log.
+      const wrapper = BACKUP_WRAPPER
+      const usingWrapper = await exists(wrapper)
+
+      if (!usingWrapper) {
+        // Checked before claiming to have started anything: a 202 for a command
+        // that cannot run is a lie the app reports as "Backup finished".
+        const probe = await run('restic', ['version'], 5000)
+        if (!probe.ok) {
+          return send(res, 503, { error: 'restic is not installed on this host' })
+        }
+        console.error(
+          '[agent] no backup wrapper found — running restic directly, so the databases are NOT included',
+        )
+      }
+
+      const started = usingWrapper
+        ? runDetached(wrapper, [])
+        : runDetached('restic', [
+            '-r',
+            RESTIC_REPO || 'b2:filesynapse-backup:/',
+            'backup',
+            PHOTOS_PATH,
+            CLOUD_PATH,
+            '--exclude-caches',
+          ])
+
+      return started.ok
+        ? send(res, 202, { started: true, includesDatabases: usingWrapper })
+        : send(res, 500, { error: started.reason ?? 'could not start the backup' })
     }
 
     const restart = url.pathname.match(/^\/api\/services\/([^/]+)\/restart$/)

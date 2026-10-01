@@ -17,7 +17,7 @@ curl -H "Authorization: Bearer $AGENT_TOKEN" http://localhost:8787/api/status
 |---|---|---|
 | GET | `/health` | `{ ok: true }` — unauthenticated, for container health checks |
 | GET | `/api/status` | the `ServerStatus` shape in [`app/src/core/types.ts`](../../app/src/core/types.ts) |
-| POST | `/api/backup` | `202` — starts restic in the background |
+| POST | `/api/backup` | `202` — starts the backup in the background. `503` if restic is not installed; the body says so |
 | POST | `/api/services/:name/restart` | `202` — restarts the container matching `:name` |
 | GET | `/api/decisions/status` | the `DecisionStatus` shape — see below |
 | POST | `/api/decisions/score` | `{ ids }` → `{ ok, scores, pending, failed }` |
@@ -42,10 +42,11 @@ deliberate, and mirrors the collectors: the caller can say something specific.
 | `AGENT_SERVICES` | `immich=immich_server,nextcloud=nextcloud,mariadb=nextcloud-db,postgres=immich_postgres` | Containers to report on, as `slug` or `slug=container` |
 | `RESTIC_REPOSITORY` | `b2:filesynapse-backup:/` | Where backups go |
 | `AGENT_BACKUP_STATUS` | `/var/lib/filesynapse/last-backup` | The timer's own verdict file, if present |
+| `AGENT_BACKUP_WRAPPER` | `/usr/local/bin/filesynapse-backup` | The provisioning-installed backup wrapper, run by `/api/backup` when present |
 | `AGENT_OLLAMA_URL` | `http://ollama:11434` | Vision model. Unset disables the pipeline |
 | `AGENT_LAYLA_URL` | `http://layla:8080` | Decision model. Unset disables the scoring half |
 | `AGENT_IMMICH_URL` | — | **Must be set** for the pipeline; Immich is in the other stack |
-| `AGENT_IMMICH_API_KEY` | — | The app's all-scoped Immich key (for-human.md §6) |
+| `AGENT_IMMICH_API_KEY` | — | The app's all-scoped Immich key (filesynapsetodo.md §6) |
 | `AGENT_VISION_MODEL` | `moondream` | Ollama model tag |
 | `AGENT_DECISION_BATCH` | `8` | Photos per request — a patience setting, not a limit |
 | `AGENT_CAPTION_PATH` | `/var/lib/filesynapse/decisions/captions.json` | Caption cache |
@@ -59,6 +60,30 @@ this machine also runs Immich's own ML container: an uncapped model does not fai
 loudly, it pushes the box into swap and takes the stack with it. A cap set too low
 refuses the load instead, which you can see. `docker compose ps` reports health,
 so "running" and "ready" are no longer the same claim.
+
+## What "Back up now" actually runs
+
+`/api/backup` prefers `AGENT_BACKUP_WRAPPER` — the script provisioning installs.
+That wrapper dumps Immich's PostgreSQL and Nextcloud's MariaDB **before** it
+snapshots anything, and writes the verdict file the status panel reads.
+
+Where the wrapper is absent (a server built by hand rather than provisioned), the
+agent falls back to calling restic directly with the two library folders. That
+covers the files and **neither database**, so the resulting snapshot restores a
+pile of files no application knows about. The agent logs a warning when it takes
+that path, and the response carries `includesDatabases: false`.
+
+Two bugs lived here, both reachable from the app's main screen, and both are
+fixed:
+
+- The detached runner used the promisified `execFile`, whose return value is a
+  Promise — so the `.unref()` on the next line threw, the `catch` swallowed it,
+  and the endpoint answered `500` on every host. "Back up now" could never work,
+  even with restic installed.
+- The rejected Promise had no handler, so on a host without restic it became an
+  unhandled rejection and **killed the agent**. The app lost the whole status
+  panel, not just the backup. A missing binary now reports through the child's
+  `error` event, which is why one is attached.
 
 ## The decision pipeline (optional)
 
@@ -121,6 +146,21 @@ of RSS while loaded and may push an 8 GB machine into swap, which is why
 captioning is **sequential** — one photo at a time, no parallelism knob — and
 why a whole-library scan is a day-scale batch rather than a button. Scoring is
 for the newest photos, not for everything.
+
+## Tests
+
+```bash
+node infra/agent/agent.test.mjs        # the HTTP contract, end to end
+node infra/agent/captionStore.test.mjs # the caption store's disk behaviour
+node infra/agent/containers.test.mjs   # slug → container resolution
+```
+
+No runner and no dependencies, like the agent itself: a script that exits
+non-zero is enough. `agent.test.mjs` spawns the agent on an ephemeral port and
+exercises the routes the app actually calls — auth, the status shape against
+`ServerStatus`, the verdict file, and both backup paths. It is there because the
+route surface once had no coverage and two bugs were living in it; see
+"What 'Back up now' actually runs" above.
 
 ## Design notes
 
