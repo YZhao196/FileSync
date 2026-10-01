@@ -223,7 +223,15 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # `packages` is set explicitly because the action's default is
+      # `tools platform-tools`, and the standalone `tools` package no longer
+      # exists in Google's repository — so the default fails with
+      # "Failed to find package 'tools'" before a single line is compiled.
+      # Gradle installs the build-tools and platform it needs itself, once the
+      # licenses above are accepted.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - run: npm ci
 
