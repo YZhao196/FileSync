@@ -54,22 +54,58 @@ fn run(program: &str, args: &[&str]) -> Option<String> {
 /// in two places. Only real filesystems are listed — tmpfs and friends would
 /// otherwise clutter the folder picker with choices nobody can store photos on.
 fn volumes() -> Vec<Volume> {
+    // `target` is asked for **last**, and that ordering is the whole of the
+    // parsing. It is the only column that can contain a space — `/media/My
+    // Drive` — and the two before it are always plain integers. With the mount
+    // point in the middle, `split_whitespace` would take its first word as the
+    // mount and then fail to read a number where the rest of the name is, so
+    // the volume would be dropped: silently missing from the picker, which is
+    // the one place it was going to be offered.
     let Some(text) = run(
         "df",
-        &["-B1", "--output=target,avail,size", "--local", "-x", "tmpfs", "-x", "devtmpfs", "-x", "squashfs"],
+        &["-B1", "--output=avail,size,target", "--local", "-x", "tmpfs", "-x", "devtmpfs", "-x", "squashfs"],
     ) else {
         return Vec::new();
     };
 
+    parse_df(&text)
+}
+
+/// The line with its first `n` whitespace-separated fields removed.
+///
+/// Not `splitn`: splitting on a whitespace *predicate* treats every space as a
+/// separator, so the run between two columns yields empty fields rather than
+/// being skipped. That version parsed the first number and then failed on ""
+/// where the second should have been, dropping every line of every `df`.
+fn after_fields(line: &str, n: usize) -> &str {
+    let mut rest = line.trim_start();
+    for _ in 0..n {
+        let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
+        rest = rest[end..].trim_start();
+    }
+    rest
+}
+
+/// `df` output, as the volumes it describes. Separated from the call so it can
+/// be tested without a filesystem.
+fn parse_df(text: &str) -> Vec<Volume> {
     text.lines()
+        // The header, whatever it says.
         .skip(1)
         .filter_map(|line| {
-            let mut parts = line.split_whitespace();
-            let mount = parts.next()?.to_string();
-            let free: u64 = parts.next()?.parse().ok()?;
-            let total: u64 = parts.next()?.parse().ok()?;
+            // `split_whitespace` collapses runs, which is right for the two
+            // numeric columns — and they are guaranteed numeric, which is what
+            // makes the mount point safe to find by position afterwards.
+            let mut fields = line.split_whitespace();
+            let free: u64 = fields.next()?.parse().ok()?;
+            let total: u64 = fields.next()?.parse().ok()?;
+
+            let mount = after_fields(line, 2);
+            if mount.is_empty() {
+                return None;
+            }
             Some(Volume {
-                mount,
+                mount: mount.to_string(),
                 free_bytes: free,
                 total_bytes: total,
             })
@@ -166,5 +202,74 @@ pub fn preflight() -> Preflight {
         volumes: vols,
         blockers,
         warnings,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_df;
+
+    /// What `df -B1 --output=avail,size,target --local` actually prints.
+    const REAL: &str = "    Avail        Size Mounted on\n\
+                        410234880    500000000 /\n\
+                         56789012    123456789 /home\n";
+
+    #[test]
+    fn reads_the_volumes() {
+        let vols = parse_df(REAL);
+        assert_eq!(vols.len(), 2);
+        assert_eq!(vols[0].mount, "/");
+        assert_eq!(vols[0].free_bytes, 410_234_880);
+        assert_eq!(vols[0].total_bytes, 500_000_000);
+        assert_eq!(vols[1].mount, "/home");
+    }
+
+    #[test]
+    fn skips_the_header_rather_than_reading_it_as_a_volume() {
+        // The header is "Mounted on" in the last column — in the older column
+        // order that is a mount point with a space in it, which is exactly the
+        // shape the ordering exists to survive. If this ever parsed, the folder
+        // picker would offer a volume called "Mounted".
+        assert!(parse_df(REAL).iter().all(|v| v.mount != "Mounted"));
+    }
+
+    #[test]
+    fn keeps_a_mount_point_that_contains_a_space() {
+        // `/media/My Passport` is a real thing somebody plugs into a server.
+        // With `target` first, `split_whitespace` took "My" as the mount and
+        // then failed to read a number where "Passport" was — so the volume was
+        // dropped, and the drive they wanted to store photos on was the one
+        // missing from the list.
+        let text = "    Avail        Size Mounted on\n\
+                    1000000      2000000 /media/My Passport\n";
+        let vols = parse_df(text);
+        assert_eq!(vols.len(), 1);
+        assert_eq!(vols[0].mount, "/media/My Passport");
+        assert_eq!(vols[0].free_bytes, 1_000_000);
+    }
+
+    #[test]
+    fn drops_a_line_it_cannot_read_rather_than_guessing() {
+        // A df that printed a warning, or a filesystem whose numbers are "-".
+        let text = "    Avail        Size Mounted on\n\
+                    garbage line here\n\
+                         1234        5678 /ok\n";
+        let vols = parse_df(text);
+        assert_eq!(vols.len(), 1, "one good line survives, the other is dropped");
+        assert_eq!(vols[0].mount, "/ok");
+    }
+
+    #[test]
+    fn handles_nothing_at_all() {
+        assert!(parse_df("").is_empty());
+        // A header with no filesystems under it.
+        assert!(parse_df("    Avail        Size Mounted on\n").is_empty());
+    }
+
+    #[test]
+    fn drops_a_line_with_no_mount_after_the_numbers() {
+        let text = "    Avail        Size Mounted on\n\
+                    1000 2000\n";
+        assert!(parse_df(text).is_empty());
     }
 }
