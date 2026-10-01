@@ -315,6 +315,50 @@ else
   step "Join the tailnet" run "tailscale up --hostname '$JOIN_NAME' --accept-routes"
 fi
 
+# ── The names Nextcloud answers to ───────────────────────────────────────
+#
+# This is the first thing anyone hits, and it is an ordering problem rather
+# than a mistake: Nextcloud's compose is written and the container started
+# *before* this machine joins the tailnet, so NEXTCLOUD_TRUSTED_DOMAINS can
+# only carry the short name at that point. Reach the server by anything else —
+# the MagicDNS FQDN, or the 100.x address — and Nextcloud answers "Access
+# through untrusted domain", which reads like a broken install rather than a
+# setting.
+#
+# Both of those are knowable only now, so they are added here. occ rather than
+# editing config.php: it is the supported path, it is idempotent, and it needs
+# no restart. Index 0 belongs to the name the compose file set, so this starts
+# at 1 and adds to it.
+#
+# No backticks in this block, like the rest of the file — it is a double-quoted
+# shell string and they would be command substitution.
+if docker ps --format '{{.Names}}' | grep -qx nextcloud; then
+  step "Trust the tailnet names" run "
+    # A running container is not an installed Nextcloud. It takes minutes to
+    # create its schema on first boot, and occ answers 'Nextcloud is not
+    # installed yet' until it has finished — so this waits for occ to work
+    # rather than for the container to exist. Bounded at three minutes, because
+    # a wait with no ceiling is a hang, and a hang here would look like the
+    # provisioning freezing rather than like this step.
+    for attempt in \$(seq 1 36); do
+      docker exec -u www-data nextcloud php occ status >/dev/null 2>&1 && break
+      sleep 5
+    done
+
+    FQDN=\$(tailscale status --json | jq -r '.Self.DNSName' | sed 's/[.]\$//')
+    IP=\$(tailscale ip -4 | head -1)
+    index=1
+    for name in \"\$FQDN\" \"\$IP\"; do
+      [ -n \"\$name\" ] || continue
+      docker exec -u www-data nextcloud php occ config:system:set \
+        trusted_domains \"\$index\" --value=\"\$name\" >/dev/null
+      index=\$((index + 1))
+    done
+  "
+else
+  skip "Trust the tailnet names" "no Nextcloud container is running"
+fi
+
 # ── Backup ───────────────────────────────────────────────────────────────
 #
 # restic to Backblaze B2, nightly, with a systemd timer. The timer writes a
