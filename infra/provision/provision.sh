@@ -177,8 +177,25 @@ NEXTCLOUD_DIR="$STACK_DIR/nextcloud"
 IMMICH_COMPOSE_URL="${IMMICH_COMPOSE_URL:-https://github.com/immich-app/immich/releases/latest/download/docker-compose.yml}"
 
 # Two passwords: these are two different database servers.
-DB_PASSWORD="$(openssl rand -hex 24)"
-IMMICH_DB_PASSWORD="$(openssl rand -hex 24)"
+#
+# Reused if this machine has been provisioned before, and that is not a
+# nicety. Generating them unconditionally meant a *second* run rewrote both
+# .env files with new values while the databases kept the ones they were
+# initialised with — so both stacks would fail to authenticate, and the error
+# reads like database corruption rather than like having run this twice.
+#
+# Which matters because the first run is explicitly a test on a machine you can
+# rebuild, and re-running is the obvious thing to do when it stops somewhere.
+# The one thing you would do next is the thing that broke it.
+existing_password() {
+  [ -f "$1" ] && sed -n 's/^DB_PASSWORD=//p' "$1" | head -1 || true
+}
+
+DB_PASSWORD="$(existing_password "$NEXTCLOUD_DIR/.env")"
+[ -n "$DB_PASSWORD" ] || DB_PASSWORD="$(openssl rand -hex 24)"
+
+IMMICH_DB_PASSWORD="$(existing_password "$IMMICH_DIR/.env")"
+[ -n "$IMMICH_DB_PASSWORD" ] || IMMICH_DB_PASSWORD="$(openssl rand -hex 24)"
 
 # Where Immich's PostgreSQL data lives. It is deliberately not inside the photos
 # library, and it defaults to the stack directory — which is the OS disk. That is
