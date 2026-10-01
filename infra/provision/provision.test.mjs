@@ -245,6 +245,26 @@ function read(path) {
   }
 }
 
+/**
+ * The tail of a run's step log, for a failure message.
+ *
+ * `step` runs a body with its output redirected to this file and emits only
+ * `failed<TAB>see <log>` — so the log is the *only* place a step says why it
+ * stopped, and the message points at a path inside a sandbox that is a temp
+ * directory. Reading it by hand meant knowing which temp directory, on the
+ * machine that ran it, before the OS reclaimed it.
+ *
+ * That made a failure like "Trust the tailnet names" unactionable from the CI
+ * log alone: the emitted line names the step and nothing else. Including the
+ * tail here is the difference between a failure that explains itself and one
+ * that has to be reproduced to be understood.
+ */
+function stepLogTail(s, lines = 8) {
+  const text = read(join(s.root, 'var/log/filesynapse-provision.log'))
+  if (!text || !text.trim()) return '(the step log is empty)'
+  return text.trim().split('\n').slice(-lines).join(' | ')
+}
+
 /* ── A clean run ────────────────────────────────────────────────────────── */
 
 console.log('\na first run, on a sandbox')
@@ -256,11 +276,12 @@ const nextcloud = join(stack, 'nextcloud')
 const immich = join(stack, 'immich')
 
 // The step log, not stderr, is where a failure explains itself: each step emits
-// `name<TAB>state<TAB>detail`, so the last line says which one stopped.
+// `name<TAB>state<TAB>detail`, so the last line says which one stopped — and
+// `stepLogTail` carries the body's own output, which is the part that says why.
 check(
   'the script exits 0',
   first.result.status === 0,
-  `${JSON.stringify(first.result.stdout?.split('\n').filter(Boolean).slice(-3))} | stderr: ${first.result.stderr?.trim().slice(-200)}`,
+  `${JSON.stringify(first.result.stdout?.split('\n').filter(Boolean).slice(-3))} | stderr: ${first.result.stderr?.trim().slice(-200)} | log: ${stepLogTail(first)}`,
 )
 
 // Whether or not Docker was installed, its daemon has to be started.
