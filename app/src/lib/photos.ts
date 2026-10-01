@@ -91,12 +91,30 @@ export function shortLabel(date: string): string {
  * A filename that survives a save dialog.
  *
  * Immich ids are reliable but not filenames; the original name is the one the
- * user recognises. Anything outside a conservative set is replaced, because
- * this string ends up as a path.
+ * user recognises.
  *
- * The fallback fires when nothing identifying survives — a name of `___` is a
- * legal filename and a useless one, so it counts as empty. `download` at least
- * says what the file is.
+ * **This is a blocklist, not an allowlist**, and the distinction matters before
+ * anyone changes it. It replaces the characters that are separators or illegal
+ * on the systems this runs on — `/` and `\`, which would change where the file
+ * lands, `: * ? " < > |`, which Windows refuses, and the control characters.
+ * Everything else passes through, including whatever Unicode the name carries,
+ * because replacing a user's emoji with an underscore is the worse outcome.
+ *
+ * So a character that turns out to be dangerous has to be *added to the
+ * pattern*. An earlier version of this comment called it "a conservative set",
+ * which reads as an allowlist and would have somebody removing a character from
+ * it instead — the opposite fix, in the one function whose whole job is making
+ * a string safe as a path.
+ *
+ * `..` is handled by the fallback rather than by the pattern: `.` is legal in a
+ * filename and `..` is not a filename, and `..` contains nothing alphanumeric,
+ * so it is caught below along with names that are entirely punctuation.
+ *
+ * Not handled, and not reachable through the app: Windows device names — `CON`,
+ * `NUL`, `COM1` and the rest. The save dialog refuses those before this sees
+ * one, and on Android they are ordinary filenames. A pathologically long name
+ * is not truncated either; it fails at the filesystem with a message naming the
+ * file, which is loud rather than silent.
  */
 export function safeFilename(name: string): string {
   const cleaned = name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim()

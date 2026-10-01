@@ -96,8 +96,43 @@ describe('safeFilename', () => {
     expect(safeFilename('../../etc/passwd')).toBe('.._.._etc_passwd')
   })
 
+  it('replaces a backslash, which separates on one of the two platforms', () => {
+    expect(safeFilename('..\\..\\windows\\system32')).toBe('.._.._windows_system32')
+  })
+
+  it('replaces every character Windows refuses', () => {
+    // Not path separators, but still not allowed in a filename there. Half the
+    // reason this function exists, and untested until now.
+    expect(safeFilename('a:b*c?d"e<f>g|h')).toBe('a_b_c_d_e_f_g_h')
+  })
+
+  it('replaces control characters, which no filename may contain', () => {
+    expect(safeFilename('a\u0000b\u001fc')).toBe('a_b_c')
+  })
+
+  it('keeps Unicode, because this is a blocklist and not an allowlist', () => {
+    // The behaviour that would change if someone rewrote this the way the old
+    // doc comment described. A user's own script and a coffee cup are theirs,
+    // and turning them into underscores is worse than keeping them.
+    expect(safeFilename('写真 2026 — 京都.jpg')).toBe('写真 2026 — 京都.jpg')
+    expect(safeFilename('café ☕.png')).toBe('café ☕.png')
+  })
+
+  it('leaves a leading dot alone, which is only a traversal in company', () => {
+    expect(safeFilename('.hidden')).toBe('.hidden')
+  })
+
   it('falls back when nothing identifying survives', () => {
     expect(safeFilename('___')).toBe('download')
     expect(safeFilename('')).toBe('download')
+  })
+
+  it('treats a bare dot-dot as nothing identifying, which closes the traversal', () => {
+    // `..` survives the pattern — `.` is a legal filename character — so the
+    // fallback is what stops it, because there is nothing alphanumeric in the
+    // name. Worth its own test: somebody tightening the pattern needs to know
+    // which half is doing the work.
+    expect(safeFilename('..')).toBe('download')
+    expect(safeFilename('../..')).toBe('download')
   })
 })
