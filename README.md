@@ -10,8 +10,10 @@ file sync with Nextcloud's.
 
 ```
 app/                React + TypeScript + Vite desktop client (Tauri shell)
+mobile/             React Native + Expo client (Android; iOS needs a Mac)
 infra/agent/        the host agent behind the status panel
 infra/provision/    provisioning script, embedded into the binary
+scripts/            the checks that keep the two clients in step
 ```
 
 ## Status
@@ -22,11 +24,20 @@ development mock.
 
 | | |
 |---|---|
-| Client, screens, tests | Built — 84 tests, strict typecheck, production build |
-| Tauri shell | Compiles and launches; installer bundles build |
+| Desktop client, screens, tests | Built — 108 tests, strict typecheck, production build |
+| Tauri shell | Compiles and launches on Windows; **Linux and macOS bundles have never been built** |
+| Mobile client | First Run, Photos, Files and Settings built; the viewer, search, albums and file actions are not |
 | Host agent | Written, its HTTP contract tested; **not deployed** |
 | Provisioning | Written, compiled into the binary; **never run** |
-| Live Immich / Nextcloud clients | Written, **unverified** |
+| Live Immich / Nextcloud clients | Written, **unverified**, on both clients |
+
+The two clients share their logic by copy, not by link: `scripts/sync-core.mjs`
+writes `mobile/src/core` and `mobile/src/lib` from `app/src`, and CI fails when
+they drift. See [mobile/README.md](mobile/README.md).
+
+**Nothing has ever reached a live server**, and no server has been built. Every
+bundle is **unsigned** — see [app/README.md](app/README.md) for what each
+platform warns about. iOS is not built and cannot be without a Mac.
 
 [`filesynapsetodo.md`](../../filesynapsetodo.md) lists what is left, in priority
 order. It lives **outside this repository** — in `Side Projects/`, two levels up

@@ -32,8 +32,21 @@ toolchain; see [`filesynapsetodo.md`](../../../filesynapsetodo.md).
 
 ## Installer
 
-`npx tauri build` produces an NSIS setup and an MSI in
-`src-tauri/target/release/bundle/`.
+`npx tauri build` produces the bundles for whatever platform it runs on, because
+`bundle.targets` is `"all"`. CI builds all three — see the `desktop-shell` job.
+
+| Platform | Built by | Produces |
+|---|---|---|
+| Windows | `npx tauri build`, or CI | NSIS setup and an MSI, in `src-tauri/target/release/bundle/` |
+| Linux | CI only | deb, rpm, AppImage |
+| macOS | CI only | app, dmg |
+
+**Linux and macOS cannot be built on the Windows development machine** and are
+not expected to be. macOS is an Apple toolchain and licensing constraint, not a
+preference; Linux cross-compilation from Windows is not practical. Both come
+from GitHub runners, which means neither has ever been produced locally by hand.
+
+### Windows
 
 - **Per-user install** — no administrator prompt. Correct here rather than
   merely convenient: credentials live in the per-user keychain and the login item
@@ -44,7 +57,27 @@ toolchain; see [`filesynapsetodo.md`](../../../filesynapsetodo.md).
   the four credentials from Windows Credential Manager and the launch-at-login
   registry value. Those outlive the files, and one of them is a secret.
 
-The bundles are **unsigned**, so SmartScreen warns on first run.
+### Linux and macOS: what uninstall does not do
+
+`hooks.nsh` is NSIS, so it is Windows-only by nature. Neither of the other two
+platforms removes the stored credentials on uninstall — on Linux they are in
+libsecret and on macOS in the Keychain, and both would survive the bundle being
+deleted. **This is a known gap, not an oversight**, and it is recorded rather
+than papered over. The manual equivalent is to delete the `filesynapse` entries
+from the platform's key store.
+
+### Signing
+
+**Every bundle is unsigned, on every platform.** What that costs:
+
+- **Windows** — SmartScreen warns. *More info* → *Run anyway*.
+- **macOS** — Gatekeeper refuses it outright: right-click → *Open*, then
+  *Open* again in the dialog. Doing it once is enough for that copy.
+- **Linux** — nothing. Distributions vary on whether they warn about a package
+  from outside their repository, but nothing blocks it.
+
+Fixing this needs a Windows code-signing certificate and an Apple Developer
+membership, and both are account-and-payment items. See `filesynapsetodo.md`.
 
 Append `?platform=macos`, `?platform=windows` or `?platform=linux` to the URL to
 override OS detection — useful for checking how keyboard shortcuts and
