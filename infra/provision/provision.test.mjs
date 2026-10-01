@@ -160,8 +160,19 @@ exit 0`,
  * `stubs` overrides individual commands, which is how the failure case is
  * exercised: one stub is made to exit non-zero in the middle of a step body.
  */
+/**
+ * Every sandbox this run created, so a failure can explain itself.
+ *
+ * A step body's output goes to the log file and nowhere else — the emitted line
+ * says `see <log>` and nothing more — and the cleanup at the end deletes the
+ * sandbox. A run that failed therefore named a step and then destroyed the only
+ * record of why. This keeps the roots so their logs can be printed first.
+ */
+const SANDBOXES = []
+
 function sandbox({ overrides = {}, env = {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'filesynapse-provision-'))
+  SANDBOXES.push(root)
   // Node writes here; the script is told about this form of it.
   const shellRoot = shellPath(root)
   const bin = join(root, 'bin')
@@ -719,6 +730,20 @@ check(
 )
 
 /* ── Cleanup ────────────────────────────────────────────────────────────── */
+
+// Printed before anything is deleted, and only when something failed. This is
+// the difference between "Trust the tailnet names" and knowing what it hit:
+// the step's own output is written to the log file and nowhere else, and the
+// loop below is about to remove it.
+if (failures.length) {
+  console.log('\nthe step logs, for the failures above')
+  for (const root of SANDBOXES) {
+    const text = read(join(root, 'var/log/filesynapse-provision.log'))
+    if (!text || !text.trim()) continue
+    console.log(`\n  ${root}`)
+    for (const line of text.trim().split('\n').slice(-12)) console.log(`    ${line}`)
+  }
+}
 
 for (const s of [first, control, failsMidBody, replacing]) {
   try {
