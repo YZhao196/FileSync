@@ -184,6 +184,16 @@ jobs:
 
       - run: npm ci
 
+      # The token and icon modules are generated and committed, so they can go
+      # stale in a way nothing else catches: edit `tokens.css` on the desktop and
+      # the phone keeps rendering yesterday's palette, silently and correctly
+      # looking. These are the checks that notice.
+      - name: Generated files are current
+        working-directory: .
+        run: |
+          node scripts/gen-mobile-tokens.mjs --check
+          node scripts/gen-mobile-icons.mjs --check
+
       - run: npm run typecheck
 
       - run: npm test
