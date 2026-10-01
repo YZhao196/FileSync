@@ -39,11 +39,15 @@ function ScreenRouter({ screen }: { screen: Screen }) {
 }
 
 function Shell() {
-  const { screen, backends } = useApp()
+  const { screen, backends, setServerStatus } = useApp()
 
   // Warning about a fabricated backup would be the most misleading thing this
   // app could do, so the watcher stays off while a development build is on mocks.
-  useBackupWatch(backends, !USING_MOCK)
+  //
+  // Its status goes into the store as well as the tray, so the surfaces inside
+  // the window read the same poll rather than fetching their own and going
+  // stale behind it.
+  useBackupWatch(backends, !USING_MOCK, setServerStatus)
 
   return (
     <div

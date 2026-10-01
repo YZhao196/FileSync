@@ -10,7 +10,7 @@ import {
 import type { Backends } from '../core/backends'
 import { createBackends, deriveConnection, EMPTY_CREDENTIALS } from '../core/client'
 import { isNative, saveCredentials, loadCredentials } from '../native/bridge'
-import type { Connection, ConnectionState, Credentials } from '../core/types'
+import type { Connection, ConnectionState, Credentials, ServerStatus } from '../core/types'
 
 export type Screen =
   | 'first-run'
@@ -152,6 +152,17 @@ export interface AppApi extends Persisted {
   setTheme: (t: ThemeChoice) => void
   connectionState: ConnectionState
   setConnectionState: (s: ConnectionState) => void
+  /**
+   * The last status the backup watcher fetched, or null when it could not
+   * reach the server.
+   *
+   * Held here rather than fetched by each surface that wants it. The watcher
+   * already polls every five minutes — that is what keeps the tray current —
+   * and the sidebar asking for the same thing on its own meant the window and
+   * the tray could disagree, with the window being the stale one.
+   */
+  serverStatus: ServerStatus | null
+  setServerStatus: (s: ServerStatus | null) => void
   setAddress: (address: string, overrides?: Partial<Connection>) => void
   credentials: Credentials
   setCredentials: (c: Credentials) => void
@@ -177,6 +188,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<Persisted>(load)
   const [connectionState, setConnectionState] = useState<ConnectionState>('unconfigured')
   const [credentials, setCredentials] = useState<Credentials>(loadCreds)
+  // Live, not persisted: it describes the server right now, and a remembered
+  // copy from last week is exactly the stale reassurance this exists to avoid.
+  const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null)
 
   /**
    * Set once the initial keychain load has completed (or immediately when
@@ -270,6 +284,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setTheme: (theme) => patch({ theme }),
       connectionState,
       setConnectionState,
+      serverStatus,
+      setServerStatus,
       setAddress,
       credentials,
       setCredentials,
@@ -314,6 +330,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       state,
       resolvedTheme,
       connectionState,
+      serverStatus,
       setAddress,
       credentials,
       screen,

@@ -1,5 +1,10 @@
 import { Button, NavList, Stack } from '@primer/react'
-import { useAsync } from '../hooks/useAsync'
+// The indicators below read the status the backup watcher already polls rather
+// than fetching their own — see `serverStatus` in the store. Fetching here meant
+// once per mount, which for a window that lives in the tray is once per launch:
+// the sidebar could show "Immich running" for days while the tray beside it
+// said otherwise. UI-DESKTOP.md asks for this "at a glance", and a glance is
+// only worth taking if it is current.
 import { formatClock } from '../lib/format'
 import { modShortcut } from '../lib/platform'
 import { useApp, type Screen } from '../state/store'
@@ -48,8 +53,7 @@ function SetupMark() {
 }
 
 export function Sidebar() {
-  const { photoMode, fileMode, go, backends, isLean, setSearchOpen } = useApp()
-  const { data: status } = useAsync(() => backends.server.status(), [backends])
+  const { photoMode, fileMode, go, isLean, setSearchOpen, serverStatus: status } = useApp()
 
   const showPhotoSection = photoMode === 'choose' || photoMode === 'inapp'
   const showFileSection = fileMode === 'choose' || fileMode === 'inapp'
