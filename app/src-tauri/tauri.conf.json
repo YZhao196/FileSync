@@ -27,7 +27,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi"],
+    "targets": "all",
     "publisher": "FileSynapse",
     "copyright": "© 2026 FileSynapse",
     "category": "Utility",

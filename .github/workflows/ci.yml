@@ -41,6 +41,78 @@ jobs:
       - name: Build
         run: npm run build
 
+      # mobile/src holds copies of app/src's shared logic, not links — see
+      # scripts/sync-core.mjs. Nothing about the two clients' own test suites
+      # notices when they disagree about the API, so this is the only thing
+      # that would.
+      - name: Shared logic has not drifted
+        working-directory: .
+        run: node scripts/sync-core.mjs --check
+
+  # The Rust shell, which used to be skipped here on the grounds that nothing
+  # gated on it. It is built now because "it compiles" was a claim about exactly
+  # one machine — this one, Windows — and the project ships three desktops.
+  # Expect this to be the job that finds things; that is its purpose.
+  desktop-shell:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: macos-latest
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      # Tauri links against the system webview, and the keyring crate against
+      # libsecret. Neither is present on a bare runner; without them the build
+      # fails at link time rather than compile time, which reads as a code error
+      # and is not one.
+      - name: Linux system dependencies
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: .
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            libsecret-1-dev
+
+      - run: npm ci
+
+      - run: npm run build
+
+      # `bundle.targets` is "all", so this produces nsis+msi on Windows, deb+rpm
+      # +AppImage on Linux and app+dmg on macOS. The bundles are unsigned — see
+      # app/README.md for what each platform warns about.
+      - name: Build the shell and its bundles
+        run: npx tauri build
+
+      - name: Upload bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: filesynapse-${{ matrix.os }}
+          path: app/src-tauri/target/release/bundle/
+          if-no-files-found: warn
+
   # The infra scripts: the host agent, which is dependency-free Node and so needs
   # no install step — that being the point of it — and the provisioning script.
   # Syntax-checked as well as tested, because `node --check` catches an import of
@@ -91,3 +163,72 @@ jobs:
           echo "agent compose ok"
           AGENT_TOKEN=ci docker compose -f infra/agent/docker-compose.yml --profile decisions config >/dev/null
           echo "agent compose with the decisions profile ok"
+
+  # The mobile client. Its `src/core` and `src/lib` are *copies* of the desktop's
+  # — see scripts/sync-core.mjs — so these tests are the desktop's own, run
+  # against React Native. That is the point: the shared logic is verified on both
+  # platforms by the same assertions rather than by two suites that drift apart.
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+  # The only phone artefact anything can produce without a Mac. A debug APK
+  # installs on a physical device over `adb`, so this is a real deliverable
+  # rather than a smoke test — though nothing here can prove it *runs*, which
+  # needs a device and, ultimately, a server.
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      # React Native 0.86 builds against the Android Gradle plugin's Java, not
+      # whatever the runner happens to ship.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - run: npm ci
+
+      # `--no-install` because npm already ran; prebuild only generates the
+      # native project, which is deliberately not committed. See app.config /
+      # app.json — CNG means `android/` is a build artefact.
+      - run: npx expo prebuild -p android --no-install
+
+      - name: Build the debug APK
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload the APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: filesynapse-android-debug
+          path: mobile/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
