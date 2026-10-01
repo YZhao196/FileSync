@@ -57,15 +57,21 @@ skip() { emit "$1" skipped "$2"; }
 
 # A multi-command step body, run fail-fast.
 #
-# `step` runs its body in a child shell, and a child does **not** inherit
-# `set -e` or `set -u` from this script. A body of several commands therefore
-# reported success as long as its *last* command succeeded, so a failed write in
-# the middle was invisible: the step went green and the run ended with a success
-# summary. That is the worst way to lose data — the nightly backup job is
-# written by such a body.
+# A step body runs in a child shell, and a child does **not** inherit set -e or
+# set -u from this script. A body of several commands therefore reported success
+# as long as its *last* command succeeded, so a failed write in the middle was
+# invisible: the step went green and the run ended with a success summary. That
+# is the worst way to lose data — the nightly backup job is written by such a
+# body.
 #
 # Every body of more than one command goes through here. A bare single command
-# (`mkdir -p …`) needs no wrapper.
+# (mkdir -p, say) needs no wrapper.
+#
+# Nothing in this file may contain a backtick, comments included — CI greps for
+# one and refuses the build. That is not pedantry: step bodies below are written
+# inside double-quoted strings, where a backtick is command substitution and
+# runs at provision time. One in a comment about pulling images would have
+# pulled them. Keep the names above unquoted; that is why.
 run() { bash -euo pipefail -c "$1"; }
 
 log() { echo "[provision] $*" >&2; }
