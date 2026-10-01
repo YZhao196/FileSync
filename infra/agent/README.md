@@ -11,6 +11,14 @@ docker compose up -d
 curl -H "Authorization: Bearer $AGENT_TOKEN" http://localhost:8787/api/status
 ```
 
+If the libraries are not at `/srv/photos` and `/srv/cloud`, set `HOST_PHOTOS_DIR`
+and `HOST_CLOUD_DIR` in that `.env` too. Provisioning takes `PHOTOS_DIR` and
+`FILES_DIR`, so a machine with its own data disk will have moved them — and
+without these the agent mounts `/srv`, measures a directory nothing writes to,
+and reports disk usage for the wrong disk. That is the harder mistake to notice:
+it reports a number rather than an error. The paths *inside* the container do not
+change, so `AGENT_PHOTOS_PATH` and the backup wrapper are unaffected.
+
 ## API
 
 | Method | Path | Returns |

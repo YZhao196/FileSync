@@ -29,6 +29,9 @@ services:
       - "8787:8787"
     environment:
       AGENT_TOKEN: "${AGENT_TOKEN:?set AGENT_TOKEN in .env}"
+      # Container-side paths, fixed. The host side they are mounted from is
+      # HOST_PHOTOS_DIR / HOST_CLOUD_DIR, below — set those if provisioning put
+      # the libraries somewhere other than /srv.
       AGENT_PHOTOS_PATH: "/srv/photos"
       AGENT_CLOUD_PATH: "/srv/cloud"
       # `slug=container`, because neither stack's container names are guessable:
@@ -59,9 +62,19 @@ services:
     volumes:
       # Container health and restarts
       - /var/run/docker.sock:/var/run/docker.sock
-      # Read-only: the agent reports on the libraries, it never writes to them
-      - /srv/photos:/srv/photos:ro
-      - /srv/cloud:/srv/cloud:ro
+      # Read-only: the agent reports on the libraries, it never writes to them.
+      #
+      # The *host* side is overridable because provisioning lets the libraries
+      # move — PHOTOS_DIR and FILES_DIR have defaults but are configurable — and
+      # hardcoding /srv here would leave the agent measuring a directory nothing
+      # writes to. That is the worst kind of wrong: it reports a number rather
+      # than failing, and the number is for the wrong disk.
+      #
+      # The container side stays fixed, because that is what AGENT_PHOTOS_PATH
+      # and AGENT_CLOUD_PATH above refer to, and what the backup wrapper inside
+      # the agent names.
+      - ${HOST_PHOTOS_DIR:-/srv/photos}:/srv/photos:ro
+      - ${HOST_CLOUD_DIR:-/srv/cloud}:/srv/cloud:ro
       # The backup timer's verdict file. Without this mount the agent cannot see
       # it and falls back to inferring success from snapshot age — see README.md.
       - /var/lib/filesynapse:/var/lib/filesynapse:ro
