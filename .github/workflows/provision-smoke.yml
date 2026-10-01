@@ -1,0 +1,116 @@
+name: Provisioning smoke test
+
+# Deliberately not on `push`. This pulls Immich's and Nextcloud's images, starts
+# both stacks and waits for them to come up — twenty minutes and several
+# gigabytes, for a script that changes rarely. It runs when someone asks it to,
+# which is the right shape for a test whose whole purpose is to be expensive and
+# rare. Everything else lives in ci.yml.
+on:
+  workflow_dispatch:
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Immich's compose includes a machine-learning container that is several
+      # gigabytes on its own, and a stock runner has about 14 GB free — which is
+      # not enough once both stacks and two databases are extracted. These are
+      # the toolchains the runner image ships and this job never uses.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+          df -h /
+
+      # The one thing that genuinely cannot run here is joining a tailnet — it
+      # needs an auth key and an account this job does not have. So `tailscale`
+      # is replaced by a stub that answers the two calls provisioning makes.
+      #
+      # This is a test double and it is declared as one: everything downstream of
+      # it — the trusted-domain step, the name it sets — is exercising real code
+      # against a fake answer, not real Tailscale. What it buys is that the rest
+      # of the script runs for the first time on a real machine.
+      - name: Stand in for Tailscale
+        run: |
+          sudo tee /usr/local/bin/tailscale >/dev/null <<'STUB'
+          #!/bin/bash
+          case "$1" in
+            status)
+              if [ "$2" = "--json" ]; then
+                echo '{"Self":{"DNSName":"filesynapse.tailnet.test.","TailscaleIPs":["100.64.0.1"]}}'
+              fi
+              exit 0
+              ;;
+            ip) echo "100.64.0.1"; exit 0 ;;
+            *) exit 0 ;;
+          esac
+          STUB
+          sudo chmod +x /usr/local/bin/tailscale
+          tailscale status --json
+
+      - name: Run provisioning
+        # No Backblaze credentials, so the backup block skips itself, and no
+        # TRANSFER, so the rsync/restore routes do not run. What is under test is
+        # the part every install takes: packages, both stacks, the tailnet step
+        # and the report at the end.
+        run: |
+          sudo -E env PATH="$PATH" \
+            PHOTOS_DIR=/srv/photos \
+            FILES_DIR=/srv/cloud \
+            TAILSCALE_NAME=filesynapse \
+            bash infra/provision/provision.sh
+
+      # Each assertion is a separate step so a failure names itself rather than
+      # stopping at the first line of one big script.
+      - name: Both stacks are running
+        run: |
+          docker ps --format '{{.Names}}\t{{.Status}}'
+          for c in immich_server nextcloud nextcloud-db immich_postgres; do
+            docker ps --format '{{.Names}}' | grep -qx "$c" || { echo "::error::$c is not running"; exit 1; }
+          done
+
+      - name: Immich answers
+        run: |
+          for i in $(seq 1 40); do
+            curl -fsS http://localhost:2283/api/server/ping && break
+            sleep 5
+          done | grep -q pong || { echo "::error::Immich never answered"; exit 1; }
+
+      - name: Nextcloud answers
+        run: |
+          for i in $(seq 1 40); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/status.php || true)
+            [ "$code" = "200" ] && break
+            sleep 5
+          done
+          curl -fsS http://localhost:8080/status.php | grep -q '"installed":false' \
+            || echo "::warning::Nextcloud did not report the expected fresh-install status"
+
+      # The step this job was written for. Before it existed, `trusted_domains`
+      # held only the short name and every other address answered "Access through
+      # untrusted domain" — which no unit test could have caught, because it is
+      # Nextcloud's opinion of a name, not this project's.
+      - name: Nextcloud trusts the tailnet names
+        run: |
+          docker exec -u www-data nextcloud php occ config:list system
+          docker exec -u www-data nextcloud php occ config:list system > /tmp/nc.json
+
+          # The FQDN the stub reported. If the step did not run, or ran before
+          # Nextcloud finished installing, this is absent — and that is exactly
+          # the failure this job exists to catch.
+          grep -q 'filesynapse.tailnet.test' /tmp/nc.json \
+            || { echo "::error::the tailnet FQDN was never added to trusted_domains"; exit 1; }
+          grep -q 'filesynapse' /tmp/nc.json \
+            || { echo "::error::overwritehost was never set"; exit 1; }
+
+      - name: Always upload the provisioning log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: provision-log
+          path: /var/log/filesynapse-provision.log
+          if-no-files-found: warn
