@@ -163,16 +163,18 @@ exit 0`,
 /**
  * Every sandbox this run created, so a failure can explain itself.
  *
- * A step body's output goes to the log file and nowhere else — the emitted line
- * says `see <log>` and nothing more — and the cleanup at the end deletes the
- * sandbox. A run that failed therefore named a step and then destroyed the only
- * record of why. This keeps the roots so their logs can be printed first.
+ * A run that failed used to name a step and nothing else, and the cleanup at
+ * the end then deleted the sandbox — so the only two things that say why, the
+ * event stream and the step log, both went away before anyone could read them.
+ * Worse, a body that fails *quietly* writes nothing to the step log at all: a
+ * passing run leaves every log at zero bytes, because the bodies redirect their
+ * own output. So the event stream is the one that matters — the last `start`
+ * with no matching `ok` or `failed` is the step the run died in.
  */
 const SANDBOXES = []
 
 function sandbox({ overrides = {}, env = {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'filesynapse-provision-'))
-  SANDBOXES.push(root)
   // Node writes here; the script is told about this form of it.
   const shellRoot = shellPath(root)
   const bin = join(root, 'bin')
@@ -245,7 +247,9 @@ function sandbox({ overrides = {}, env = {} } = {}) {
   result.stdout = readFileSync(outPath, 'utf8')
   result.stderr = readFileSync(errPath, 'utf8')
 
-  return { root, shellRoot, bin, result, scriptPath, env: sandboxEnv }
+  const built = { root, shellRoot, bin, result, scriptPath, env: sandboxEnv }
+  SANDBOXES.push(built)
+  return built
 }
 
 function read(path) {
@@ -736,12 +740,16 @@ check(
 // the step's own output is written to the log file and nowhere else, and the
 // loop below is about to remove it.
 if (failures.length) {
-  console.log('\nthe step logs, for the failures above')
-  for (const root of SANDBOXES) {
-    const text = read(join(root, 'var/log/filesynapse-provision.log'))
-    if (!text || !text.trim()) continue
-    console.log(`\n  ${root}`)
-    for (const line of text.trim().split('\n').slice(-12)) console.log(`    ${line}`)
+  console.log('\nwhy, for the failures above')
+  for (const s of SANDBOXES) {
+    const events = (s.result.stdout ?? '').split('\n').filter(Boolean)
+    console.log(`\n  ${s.root}`)
+    console.log(`    exit ${s.result.status}`)
+    console.log(`    events: ${events.join(' | ') || '(none emitted)'}`)
+    const text = read(join(s.root, 'var/log/filesynapse-provision.log'))
+    if (text && text.trim()) {
+      console.log(`    log: ${text.trim().split('\n').slice(-6).join(' | ')}`)
+    }
   }
 }
 
