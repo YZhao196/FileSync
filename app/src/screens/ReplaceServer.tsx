@@ -134,9 +134,14 @@ export function ReplaceServer() {
     const started = await startProvision({
       photosFolder: photoFolder,
       filesFolder: fileFolder,
-      // A temporary name. The working server keeps its own until the copy has
-      // been verified — the handover step is where the name actually moves.
-      tailscaleName: `${connection.address || 'filesynapse'}-new`,
+      // The real name, so the services are configured for the name this machine
+      // will answer to once the copy is verified — NEXTCLOUD_TRUSTED_DOMAINS in
+      // particular, which would reject the real name if it were set to the
+      // temporary one.
+      tailscaleName: connection.address || 'filesynapse',
+      // …but it joins the tailnet under a temporary name, so the working server
+      // keeps answering until then. The handover step is where the name moves.
+      tailscaleTempName: `${connection.address || 'filesynapse'}-new`,
       transfer,
       sourceAddress: connection.address || undefined,
       // Only the restore route needs these: it reads the old machine's
@@ -432,12 +437,21 @@ export function ReplaceServer() {
               lines={[
                 'Verify the copy — file counts and spot-checks',
                 'Run a backup from this machine, and test a restore',
-                'Swap the Tailscale name over to this machine',
+                'Release the name on the old machine, then claim it here',
               ]}
             />
             <Notice tone="warn">
-              The name swap must come before either option below. Two machines cannot hold one
-              Tailscale name, and swapping early cuts you off from the working server.
+              This machine joined the tailnet as{' '}
+              <code className="code-01">{`${connection.address || 'filesynapse'}-new`}</code>, so the
+              server you are replacing kept answering. The swap is deliberately left to you, because
+              it must not happen until the copy is verified: two machines cannot hold one name, and
+              swapping early cuts you off from the working one. On the old machine run{' '}
+              <code className="code-01">sudo tailscale down</code>, then on this one{' '}
+              <code className="code-01">
+                sudo tailscale up --hostname {connection.address || 'filesynapse'}
+              </code>
+              . Your phones and laptops then reach this machine at the name they already use, with
+              nothing to reconfigure.
             </Notice>
 
             <RouteCard

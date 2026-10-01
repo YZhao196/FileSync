@@ -57,7 +57,7 @@ export async function pickFolder(initialPath?: string): Promise<string | null> {
   }
 
   const typed = globalThis.prompt(
-    'Folder path — no native dialog is available in this build (see for-human.md).',
+    'Folder path — no native dialog is available in this build (see filesynapsetodo.md).',
     initialPath ?? '',
   )
   return typed && typed.trim() ? typed.trim() : null
@@ -118,7 +118,7 @@ export interface NativeResponse {
  *
  * Falls back to the global `fetch` in the browser (dev mode). In that case
  * Immich and Nextcloud will fail with CORS errors in live mode — which is
- * expected and documented in for-human.md §4.
+ * expected and documented in filesynapsetodo.md §4.
  *
  * Accepts the subset of `RequestInit` the app uses: `method`, `headers`
  * (Record<string, string>), `body` (string). `AbortSignal` is silently ignored
@@ -388,7 +388,13 @@ export async function preflight(): Promise<Preflight> {
 export interface ProvisionConfig {
   photosFolder: string
   filesFolder: string
+  /** The name the server is reached by. On a replacement this is the real name,
+   *  even though the machine joins under the temporary one below — the services
+   *  are configured for the name they will answer to. */
   tailscaleName: string
+  /** Only while replacing: the machine joins the tailnet under this instead, so
+   *  the working server keeps answering until the copy is verified. */
+  tailscaleTempName?: string
   transfer: 'fresh' | 'sync' | 'restore'
   sourceAddress?: string
   /** Off-site backup target. Omitted means no cloud copy is configured. */

@@ -20,7 +20,14 @@ use std::sync::{Arc, Mutex};
 pub struct ProvisionConfig {
     photos_folder: String,
     files_folder: String,
+    /// The name everything reaches this server by. On a replacement this is the
+    /// *real* name, even though the machine joins under a temporary one — the
+    /// services it configures have to answer to the name they will be reached by.
     tailscale_name: String,
+    /// Set only while replacing another server: the machine joins the tailnet
+    /// under this instead, so the working server keeps answering until the copy
+    /// has been verified. Empty on a fresh install.
+    tailscale_temp_name: Option<String>,
     /// "fresh" | "sync" | "restore"
     transfer: String,
     source_address: Option<String>,
@@ -126,6 +133,10 @@ pub fn start_provision(
                 .env("PHOTOS_DIR", &config.photos_folder)
                 .env("FILES_DIR", &config.files_folder)
                 .env("TAILSCALE_NAME", &config.tailscale_name)
+                .env(
+                    "TAILSCALE_TEMP_NAME",
+                    config.tailscale_temp_name.clone().unwrap_or_default(),
+                )
                 .env("TRANSFER", &config.transfer)
                 .env("SOURCE_ADDRESS", config.source_address.clone().unwrap_or_default())
                 .env("B2_BUCKET", config.b2_bucket.clone().unwrap_or_default())

@@ -125,6 +125,27 @@ export function FirstRun() {
                   {result.message}
                 </InlineMessage>
               )}
+
+              {/*
+                A failure here is, on a brand-new server, almost always the same
+                one: the app has no credentials yet, so every endpoint answers
+                401. That is not a fault to report and leave — it is the next
+                step, and on this screen there was previously no way to take it.
+                The hint names where the two secrets come from, because on a
+                server that was just provisioned they do not exist yet either.
+              */}
+              {result && state === 'failed' && (
+                <Stack direction="vertical" gap="condensed">
+                  <p className="helper-text-01" style={{ color: 'var(--text-helper)' }}>
+                    Credentials are added in Settings, and a new server has none yet. In Immich,
+                    create an API key under Account Settings → API Keys; in Nextcloud, an app
+                    password under Personal settings → Security.
+                  </p>
+                  <Button variant="primary" block onClick={() => go('settings')}>
+                    Enter credentials
+                  </Button>
+                </Stack>
+              )}
             </Stack>
 
             <p className="helper-text-01" style={{ color: 'var(--text-helper)', textAlign: 'center' }}>
