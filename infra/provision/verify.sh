@@ -134,7 +134,7 @@ if running nextcloud; then
     if docker exec -u www-data nextcloud php occ config:list system >/dev/null 2>&1; then
       domains="$(docker exec -u www-data nextcloud php occ config:list system 2>/dev/null)"
       # Just the value, not the key: this line is read by someone debugging a
-      # server, and `"overwritehost": "filesynapse"` makes them parse it.
+      # server, and printing the JSON key beside it makes them parse it.
       host="$(printf '%s' "$domains" | grep -o '"overwritehost": *"[^"]*"' | head -1 | sed 's/.*: *"//; s/"$//')"
 
       if [ -n "$host" ]; then

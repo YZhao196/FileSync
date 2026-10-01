@@ -148,15 +148,18 @@ jobs:
       # pulling images would have pulled them.
       - name: provision.sh is safe to run
         run: |
-          bash -n infra/provision/provision.sh
-          if grep -n '`' infra/provision/provision.sh; then
-            echo "::error::backticks in provision.sh are command substitution, even in comments"
-            exit 1
-          fi
-          # verify.sh is parsed here for the same reason and one more: it is the
-          # script somebody runs on a server that is already broken, and a syntax
-          # error in it would be discovered at the worst possible moment.
-          bash -n infra/provision/verify.sh
+          # The backtick rule covers both scripts, not just the one that needs
+          # it today. It was added here after the same mistake was made three
+          # times in one sitting — each time in a comment, each time invisible
+          # while the change was being read back. A rule that depends on
+          # remembering it is a rule that fails eventually.
+          for script in infra/provision/provision.sh infra/provision/verify.sh; do
+            bash -n "$script" || exit 1
+            if grep -n '`' "$script"; then
+              echo "::error::backticks in $script are command substitution in a double-quoted step body, even in comments"
+              exit 1
+            fi
+          done
           python3 -m py_compile infra/agent/layla/server.py
           echo "infra scripts ok"
 
