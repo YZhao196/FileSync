@@ -5,6 +5,14 @@ on:
     branches: [main]
   pull_request:
 
+# One run per branch at a time, newest wins. Without this, every push while an
+# earlier run is still going starts a second full matrix against the same code —
+# and the Android job takes long enough that a handful of pushes will queue five
+# runs deep, each one building a commit nobody is waiting for any more.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 # The client half only. The Rust shell is not built here: it needs the Tauri
 # Linux system libraries (webkit2gtk, libsecret and friends) and several minutes
 # of compile time, and nothing currently gates on it. Add a job when it does.
