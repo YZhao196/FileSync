@@ -153,6 +153,10 @@ jobs:
             echo "::error::backticks in provision.sh are command substitution, even in comments"
             exit 1
           fi
+          # verify.sh is parsed here for the same reason and one more: it is the
+          # script somebody runs on a server that is already broken, and a syntax
+          # error in it would be discovered at the worst possible moment.
+          bash -n infra/provision/verify.sh
           python3 -m py_compile infra/agent/layla/server.py
           echo "infra scripts ok"
 

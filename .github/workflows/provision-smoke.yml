@@ -55,8 +55,13 @@ jobs:
       - name: Run provisioning
         # No Backblaze credentials, so the backup block skips itself, and no
         # TRANSFER, so the rsync/restore routes do not run. What is under test is
-        # the part every install takes: packages, both stacks, the tailnet step
-        # and the report at the end.
+        # the part every install takes: packages, both stacks, the tailnet step,
+        # the agent, and the report at the end.
+        #
+        # AGENT_DIR points at the repository copy. The app writes the agent to a
+        # temp directory and passes that path; this passes the source instead, so
+        # the deploy path is exercised rather than the "no agent files were
+        # supplied" skip.
         run: |
           sudo -E env PATH="$PATH" \
             PHOTOS_DIR=/srv/photos \
@@ -65,66 +70,17 @@ jobs:
             AGENT_DIR="$PWD/infra/agent" \
             bash infra/provision/provision.sh
 
-      # The app writes the agent into a temp directory and passes its path; this
-      # passes the repository copy instead, so the deploy path is exercised
-      # rather than the "no agent files were supplied" skip.
-      - name: The host agent is deployed and answering
+      # The same script a person runs on their own server afterwards. It is
+      # called rather than reimplemented here so there is one definition of what
+      # a working server means, and so the definition CI checks is the one the
+      # user relies on.
+      - name: Verify the server
         run: |
-          sudo test -s /opt/filesynapse/agent/.env \
-            || { echo "::error::no agent .env was written"; exit 1; }
-          sudo grep -q '^AGENT_TOKEN=' /opt/filesynapse/agent/.env \
-            || { echo "::error::the agent token is missing"; exit 1; }
-          sudo grep -q '^HOST_PHOTOS_DIR=' /opt/filesynapse/agent/.env \
-            || { echo "::error::the host library paths were not set"; exit 1; }
-
-          for i in $(seq 1 30); do
-            curl -fsS http://localhost:8787/health && break
-            sleep 5
-          done | grep -q '"ok":true' \
-            || { echo "::error::the host agent never answered on 8787"; exit 1; }
-
-      # Each assertion is a separate step so a failure names itself rather than
-      # stopping at the first line of one big script.
-      - name: Both stacks are running
-        run: |
-          docker ps --format '{{.Names}}\t{{.Status}}'
-          for c in immich_server nextcloud nextcloud-db immich_postgres; do
-            docker ps --format '{{.Names}}' | grep -qx "$c" || { echo "::error::$c is not running"; exit 1; }
-          done
-
-      - name: Immich answers
-        run: |
-          for i in $(seq 1 40); do
-            curl -fsS http://localhost:2283/api/server/ping && break
-            sleep 5
-          done | grep -q pong || { echo "::error::Immich never answered"; exit 1; }
-
-      - name: Nextcloud answers
-        run: |
-          for i in $(seq 1 40); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/status.php || true)
-            [ "$code" = "200" ] && break
-            sleep 5
-          done
-          curl -fsS http://localhost:8080/status.php | grep -q '"installed":false' \
-            || echo "::warning::Nextcloud did not report the expected fresh-install status"
-
-      # The step this job was written for. Before it existed, `trusted_domains`
-      # held only the short name and every other address answered "Access through
-      # untrusted domain" — which no unit test could have caught, because it is
-      # Nextcloud's opinion of a name, not this project's.
-      - name: Nextcloud trusts the tailnet names
-        run: |
-          docker exec -u www-data nextcloud php occ config:list system
-          docker exec -u www-data nextcloud php occ config:list system > /tmp/nc.json
-
-          # The FQDN the stub reported. If the step did not run, or ran before
-          # Nextcloud finished installing, this is absent — and that is exactly
-          # the failure this job exists to catch.
-          grep -q 'filesynapse.tailnet.test' /tmp/nc.json \
-            || { echo "::error::the tailnet FQDN was never added to trusted_domains"; exit 1; }
-          grep -q 'filesynapse' /tmp/nc.json \
-            || { echo "::error::overwritehost was never set"; exit 1; }
+          sudo -E env PATH="$PATH" \
+            STACK_DIR=/opt/filesynapse \
+            PHOTOS_DIR=/srv/photos \
+            FILES_DIR=/srv/cloud \
+            bash infra/provision/verify.sh
 
       - name: Always upload the provisioning log
         if: always()
