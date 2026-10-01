@@ -108,8 +108,17 @@ recorded where the code is:
 
 Nothing here has touched a live Immich or Nextcloud. The mock backend is what
 renders, and `src/core/client.ts` selects it in a development build and cannot
-reach it in a release one — the same guarantee the desktop gets, through
-`__DEV__` rather than `import.meta.env.DEV`.
+reach it in a release one.
+
+**But the guarantee is weaker than the desktop's, and that was checked rather
+than assumed.** Vite folds `import.meta.env.DEV` to `false`, so Rollup removes
+the branch *and the mock module with it* — a desktop installer contains no mock
+code. Metro does not: `expo export --platform android` produces a production
+bundle that still contains `createMockBackends` and the mock's placeholder text.
+`__DEV__` is false at runtime, so the mock cannot run and no fabricated data can
+reach a screen — but the code and its sample albums do ship. Stripping them
+needs a build-time transform, which is recorded as a follow-up rather than
+guessed at here.
 
 Two things in particular are unverified and cannot be settled by reading:
 
