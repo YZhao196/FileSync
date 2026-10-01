@@ -4,19 +4,26 @@
  *
  * The test reports *which* part failed rather than a generic error — a typo in
  * one URL should not read as "the server is down" (UI-MOBILE.md §1).
+ *
+ * The parts that are not desktop-specific — the ports, `deriveConnection`, and
+ * the wording of a failed probe — live in `./connection.ts`, which the mobile
+ * client shares. What is left here is the half that genuinely differs: how a
+ * build knows it is a development build, and which backends that selects. They
+ * are re-exported below so this file remains the single import for callers.
  */
 
-import { nativeFetch } from '../native/bridge'
 import type { Backends } from './backends'
+import { describeConnection, probe } from './connection'
 import { createMockBackends } from './mock'
 import { basicAuth, createLiveBackends } from './remote'
-import type {
-  Connection,
-  ConnectionState,
-  Credentials,
-  ProbeResult,
-  TestResult,
-} from './types'
+import type { Connection, ConnectionState, Credentials, TestResult } from './types'
+
+export {
+  DEFAULT_PORTS,
+  EMPTY_CREDENTIALS,
+  deriveConnection,
+  describeConnection,
+} from './connection'
 
 /**
  * Development builds talk to a mock backend so the app can be worked on with no
@@ -29,56 +36,6 @@ import type {
  */
 export const USING_MOCK: boolean = import.meta.env.DEV
 
-export const DEFAULT_PORTS = {
-  immich: 2283,
-  nextcloud: 8080,
-  agent: 8787,
-} as const
-
-export const EMPTY_CREDENTIALS: Credentials = {
-  immichApiKey: '',
-  nextcloudUser: '',
-  nextcloudAppPassword: '',
-  agentToken: '',
-}
-
-/**
- * One address in, three endpoints out. Ports match PLAN.md §6/§11 — everything
- * rides Tailscale, so plain http on the tailnet is expected.
- */
-export function deriveConnection(address: string): Connection {
-  const empty: Connection = {
-    address: '',
-    immichUrl: null,
-    nextcloudUrl: null,
-    agentUrl: null,
-  }
-
-  const trimmed = address.trim()
-  if (!trimmed) return empty
-
-  // The scheme must be decided before any trailing-slash cleanup: "http://"
-  // stripped to "http:" no longer reads as a scheme and would get prefixed,
-  // yielding a nonsense host.
-  const withScheme = /^https?:\/\//.test(trimmed) ? trimmed : `http://${trimmed}`
-
-  let url: URL
-  try {
-    url = new URL(withScheme)
-  } catch {
-    return empty
-  }
-  if (!url.hostname) return empty
-
-  const proto = url.protocol === 'https:' ? 'https' : 'http'
-  return {
-    address: trimmed.replace(/\/+$/, ''),
-    immichUrl: `${proto}://${url.hostname}:${DEFAULT_PORTS.immich}`,
-    nextcloudUrl: `${proto}://${url.hostname}:${DEFAULT_PORTS.nextcloud}`,
-    agentUrl: `${proto}://${url.hostname}:${DEFAULT_PORTS.agent}`,
-  }
-}
-
 export function createBackends(conn: Connection, creds: Credentials): Backends {
   // `import.meta.env.DEV` is written inline rather than through the exported
   // constant above: Vite substitutes it with the literal `false`, which lets
@@ -86,23 +43,6 @@ export function createBackends(conn: Connection, creds: Credentials): Backends {
   // production build. Behind an exported binding the branch survives and the
   // mock's sample data ships inside the installer.
   return import.meta.env.DEV ? createMockBackends() : createLiveBackends(conn, creds)
-}
-
-/* ── Connection test ───────────────────────────────────────────────────── */
-
-async function probe(url: string | null, init: RequestInit): Promise<ProbeResult> {
-  if (!url) return 'skipped'
-  try {
-    const res = await nativeFetch(url, {
-      method: (init.method as string | undefined) ?? 'GET',
-      headers: init.headers as Record<string, string> | undefined,
-      body: init.body as string | undefined,
-    })
-    if (res.status === 401 || res.status === 403) return 'auth-failed'
-    return res.ok || res.status === 207 ? 'ok' : 'unreachable'
-  } catch {
-    return 'unreachable'
-  }
 }
 
 export async function testConnection(
@@ -157,31 +97,4 @@ export async function testConnection(
     overall,
     message: describeConnection(photos, files, agent, overall),
   }
-}
-
-/** Exported for testing — the wording here is the whole point of the probe. */
-export function describeConnection(
-  photos: ProbeResult,
-  files: ProbeResult,
-  agent: ProbeResult,
-  overall: ConnectionState,
-): string {
-  if (overall === 'healthy') return 'Connected to photos, files and the server agent.'
-
-  const broken: string[] = []
-  if (photos !== 'ok') broken.push(`photos (${label(photos)})`)
-  if (files !== 'ok') broken.push(`files (${label(files)})`)
-  if (agent !== 'ok') broken.push(`server agent (${label(agent)})`)
-
-  if (overall === 'auth-failed' && broken.length === 0) {
-    return 'Server found, but the credentials were rejected.'
-  }
-  if (broken.length === 3) {
-    return "Couldn't reach your server. Is Tailscale connected on this device?"
-  }
-  return `Reached some of your server. Not working: ${broken.join(', ')}.`
-}
-
-function label(p: ProbeResult): string {
-  return p === 'auth-failed' ? 'credentials rejected' : 'unreachable'
 }

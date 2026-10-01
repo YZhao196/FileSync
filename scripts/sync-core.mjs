@@ -56,6 +56,7 @@ const FILES = [
   'core/backends.ts',
   'core/mock.ts',
   'core/remote.ts',
+  'core/connection.ts',
   'lib/format.ts',
   'lib/paths.ts',
   'lib/photos.ts',
