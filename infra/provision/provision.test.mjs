@@ -285,6 +285,36 @@ const immichEnv = read(join(immich, '.env'))
 check('the Immich .env is written', immichEnv !== null)
 check('it points at the photos folder', immichEnv?.includes(first.shellRoot) === true)
 
+// Immich's compose is *fetched* at provision time, so the contract between what
+// this writes and what that file interpolates can drift without anything here
+// noticing — and the failure is a stack that starts and cannot reach its own
+// database.
+//
+// Checked against the real file: `docker/docker-compose.yml` at v3.2.4, the
+// tag `releases/latest` resolved to on 2026-10-01. It interpolates
+// UPLOAD_LOCATION, DB_DATA_LOCATION, DB_PASSWORD, DB_USERNAME and
+// DB_DATABASE_NAME — all of them written below — plus IMMICH_VERSION, which
+// carries a `:-release` default and need not be set.
+const IMMICH_REQUIRED = [
+  'UPLOAD_LOCATION',
+  'DB_DATA_LOCATION',
+  'DB_PASSWORD',
+  'DB_USERNAME',
+  'DB_DATABASE_NAME',
+]
+const immichKeys = new Set(
+  (immichEnv ?? '')
+    .split('\n')
+    .filter((line) => line.includes('=') && !line.startsWith('#'))
+    .map((line) => line.split('=')[0].trim()),
+)
+const missing = IMMICH_REQUIRED.filter((key) => !immichKeys.has(key))
+check(
+  "every variable Immich's compose interpolates is written",
+  missing.length === 0,
+  `missing: ${missing.join(', ')} — the stack would start and not reach its database`,
+)
+
 const dump = read(join(first.root, 'usr/local/bin/filesynapse-dump'))
 const backup = read(join(first.root, 'usr/local/bin/filesynapse-backup'))
 check('the dump script is written', dump !== null)
