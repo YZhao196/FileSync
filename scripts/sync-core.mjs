@@ -76,6 +76,7 @@ const FILES = [
   'core/remote.test.ts',
   'lib/format.test.ts',
   'lib/photos.test.ts',
+  'lib/paths.test.ts',
 ]
 
 const check = process.argv.includes('--check')
