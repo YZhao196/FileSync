@@ -102,7 +102,10 @@ export async function testConnection(
   }
 
   const [photos, files] = await Promise.all([
-    probe(conn.immichUrl && `${conn.immichUrl}/api/server/ping`, {
+    // `/api/albums`, not `/api/server/ping` — see the desktop's `client.ts` for
+    // the full reason. Ping is public in Immich's controller, so probing it
+    // reported a bad key as connected.
+    probe(conn.immichUrl && `${conn.immichUrl}/api/albums`, {
       headers: { 'x-api-key': creds.immichApiKey },
     }),
     probe(

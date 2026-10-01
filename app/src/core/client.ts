@@ -63,7 +63,17 @@ export async function testConnection(
   }
 
   const [photos, files, agent] = await Promise.all([
-    probe(conn.immichUrl && `${conn.immichUrl}/api/server/ping`, {
+    // `/api/albums`, not `/api/server/ping`. Ping is `@Authenticated({ public:
+    // true })` in Immich's own controller — it takes no key and answers 200 to
+    // anyone, so probing it reported "Connected to photos" for a key that was
+    // wrong, empty or revoked, and the first sign of trouble was a 403 on the
+    // Photos screen much later.
+    //
+    // This route needs `AlbumRead`, which is a permission the photo screens
+    // actually use, so a 200 here means the key can read what the app is about
+    // to ask for. It is also why the empty-credentials case now reports
+    // "credentials were rejected" rather than success.
+    probe(conn.immichUrl && `${conn.immichUrl}/api/albums`, {
       headers: { 'x-api-key': creds.immichApiKey },
     }),
     probe(conn.nextcloudUrl && `${conn.nextcloudUrl}/remote.php/dav/files/${encodeURIComponent(creds.nextcloudUser)}/`, {

@@ -46,6 +46,15 @@ const TO = join(ROOT, 'mobile', 'src')
  *                         half that matters — createBackends, testConnection —
  *                         is per-platform anyway. Mobile writes its own.
  *   core/client.test.ts   tests the file above. Nothing to copy.
+ *   core/connection.test.ts
+ *                         tests the shared `connection.ts`, but does it with
+ *                         `vi.mock`/`vi.hoisted` module mocking, which the Jest
+ *                         shim cannot stand in for: Jest hoists a literal
+ *                         `jest.mock(...)` call above the imports, and a
+ *                         forwarded `vi.mock` would run too late to matter. The
+ *                         subject is shared and identical; only the runner
+ *                         mechanics are not, so the desktop verifies it and the
+ *                         mobile copy simply is not made.
  *   lib/platform.ts       navigator/window, file-manager names, ⌘K — desktop.
  *   lib/platform.test.ts  tests the file above.
  *   lib/thumbStore.ts     IndexedDB. Mobile keeps thumbnails as files.
