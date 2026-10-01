@@ -26,61 +26,15 @@ jobs:
                       /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
           df -h /
 
-      # The one thing that genuinely cannot run here is joining a tailnet — it
-      # needs an auth key and an account this job does not have. So `tailscale`
-      # is replaced by a stub that answers the two calls provisioning makes.
+      # The whole test, in one script rather than as a sequence of steps here.
       #
-      # This is a test double and it is declared as one: everything downstream of
-      # it — the trusted-domain step, the name it sets — is exercising real code
-      # against a fake answer, not real Tailscale. What it buys is that the rest
-      # of the script runs for the first time on a real machine.
-      - name: Stand in for Tailscale
-        run: |
-          sudo tee /usr/local/bin/tailscale >/dev/null <<'STUB'
-          #!/bin/bash
-          case "$1" in
-            status)
-              if [ "$2" = "--json" ]; then
-                echo '{"Self":{"DNSName":"filesynapse.tailnet.test.","TailscaleIPs":["100.64.0.1"]}}'
-              fi
-              exit 0
-              ;;
-            ip) echo "100.64.0.1"; exit 0 ;;
-            *) exit 0 ;;
-          esac
-          STUB
-          sudo chmod +x /usr/local/bin/tailscale
-          tailscale status --json
-
-      - name: Run provisioning
-        # No Backblaze credentials, so the backup block skips itself, and no
-        # TRANSFER, so the rsync/restore routes do not run. What is under test is
-        # the part every install takes: packages, both stacks, the tailnet step,
-        # the agent, and the report at the end.
-        #
-        # AGENT_DIR points at the repository copy. The app writes the agent to a
-        # temp directory and passes that path; this passes the source instead, so
-        # the deploy path is exercised rather than the "no agent files were
-        # supplied" skip.
-        run: |
-          sudo -E env PATH="$PATH" \
-            PHOTOS_DIR=/srv/photos \
-            FILES_DIR=/srv/cloud \
-            TAILSCALE_NAME=filesynapse \
-            AGENT_DIR="$PWD/infra/agent" \
-            bash infra/provision/provision.sh
-
-      # The same script a person runs on their own server afterwards. It is
-      # called rather than reimplemented here so there is one definition of what
-      # a working server means, and so the definition CI checks is the one the
-      # user relies on.
-      - name: Verify the server
-        run: |
-          sudo -E env PATH="$PATH" \
-            STACK_DIR=/opt/filesynapse \
-            PHOTOS_DIR=/srv/photos \
-            FILES_DIR=/srv/cloud \
-            bash infra/provision/verify.sh
+      # That is the point of it: `infra/provision/smoke.sh` is runnable on any
+      # Linux machine, so the end-to-end check does not depend on this account,
+      # this runner or this workflow. Everything below used to be duplicated
+      # here, which meant the version somebody could actually run and the
+      # version CI ran were two things that could disagree.
+      - name: Provision and verify
+        run: sudo -E env PATH="$PATH" bash infra/provision/smoke.sh
 
       - name: Always upload the provisioning log
         if: always()

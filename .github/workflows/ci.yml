@@ -153,7 +153,12 @@ jobs:
           # times in one sitting — each time in a comment, each time invisible
           # while the change was being read back. A rule that depends on
           # remembering it is a rule that fails eventually.
-          for script in infra/provision/provision.sh infra/provision/verify.sh; do
+          # Globbed, not listed. It was two explicit names, and a third script
+          # added to this directory escaped both checks entirely — which is
+          # precisely the thing the comment above said the loop was for. A rule
+          # that has to be updated when a file is added is one that is already
+          # out of date.
+          for script in infra/provision/*.sh; do
             bash -n "$script" || exit 1
             if grep -n '`' "$script"; then
               echo "::error::backticks in $script are command substitution in a double-quoted step body, even in comments"
