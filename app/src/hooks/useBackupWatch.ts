@@ -60,9 +60,20 @@ export function useBackupWatch(backends: Backends, live: boolean): void {
       if (!last) return
 
       if (last.backupOk && !verdict.backupOk) {
+        // Deliberately no duration. This used to say "more than two days old",
+        // naming the client's own 48-hour window — but that is not the
+        // threshold that fires. The agent infers `lastRunOk` at 36 hours on a
+        // server with no verdict file, and `isBackupCurrent` requires
+        // `lastRunOk`, so a run forty hours old arrives here already marked
+        // failed. The notification would have been confidently wrong about its
+        // own reason, which is the worst kind: it sends somebody to check a
+        // clock rather than a log.
+        //
+        // "recently enough" rather than a number, because there are two numbers
+        // and this code does not know which one applied.
         void notify(
           'Backup needs attention',
-          'The last restic run did not finish cleanly, or is more than two days old.',
+          'The last restic run did not finish cleanly, or has not run recently enough. Open FileSynapse to see which.',
         )
       }
       if (last.servicesOk && !verdict.servicesOk) {
