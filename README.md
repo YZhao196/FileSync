@@ -25,7 +25,7 @@ development mock.
 | | |
 |---|---|
 | Desktop client | Built — 151 tests, strict typecheck, production build; screens walked in a browser against the mock |
-| Tauri shell | Builds on Windows, Linux and macOS, all three green in CI; **nothing has been published**, because [`release.yml`](.github/workflows/release.yml) needs a `v*` tag and none has been pushed |
+| Tauri shell | Builds on Windows, Linux and macOS, all three green in CI; **v0.1.0 is published** — every installer, all unsigned, none run |
 | Mobile client | All four screens built, and all four run under test; **never run on a device** |
 | Host agent | Written, its HTTP contract tested; **not deployed** |
 | Provisioning | Written, dry-run against a sandbox; **never run on a machine** |
@@ -52,9 +52,9 @@ They are unsigned — each platform warns about that, and
 [`.github/release-notes.md`](.github/release-notes.md) says what each warning
 looks like.
 
-**That page is empty today.** No `v*` tag has been pushed, so nothing has been
-published and nothing below has been downloaded by anyone. Until then, build it
-from source — see [Building it from source](#building-it-from-source).
+**`v0.1.0` is published**, with an installer for every platform. Every one is
+unsigned and none has been run by anyone, so what follows describes what each
+build is meant to do rather than what has been confirmed.
 
 **The server comes first.** Every client is a viewer with nothing to show until
 one exists, so a client installed first lands on a connection screen that cannot

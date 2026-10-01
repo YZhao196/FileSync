@@ -50,13 +50,19 @@ jobs:
       # Created here rather than by each build job. Three jobs racing to create
       # the same release means two of them fail with a 422 and, depending on how
       # the failure is handled, either lose their assets or lose the error.
+      #
+      # Skipped when it already exists, so re-running a tag that partly failed
+      # does not stop here. The first run of this workflow died on YAML
+      # folding — see the APK step below — which left exactly that: a release
+      # with every asset but one, and a re-run needed to finish it.
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "FileSynapse $GITHUB_REF_NAME" \
-            --notes-file .github/release-notes.md
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" \
+              --title "FileSynapse $GITHUB_REF_NAME" \
+              --notes-file .github/release-notes.md
 
   # Windows, Linux and macOS, because the three desktop clients are the same
   # binary built three ways and a release that ships two of them is not a
@@ -174,9 +180,16 @@ jobs:
       # The Gradle output is `app-debug.apk`, which says nothing about what it
       # is or which version, and the Releases page is exactly where that matters
       # — it sits next to installers for three other platforms.
+      # `run: |` rather than a plain scalar, and that is the whole point of the
+      # change here. YAML folds a plain scalar's line break into a *space*, so
+      # the backslash below became an escaped space and bash was handed a
+      # destination whose name started with one — "cp: cannot create regular
+      # file ' android/…'". The other multi-line steps were already block
+      # scalars; this one was not.
       - name: Give the APK a name that identifies it
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk \
-              "android/app/build/outputs/apk/debug/filesynapse-${GITHUB_REF_NAME}-android.apk"
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+            "android/app/build/outputs/apk/debug/filesynapse-${GITHUB_REF_NAME}-android.apk"
 
       - name: Attach the APK to the release
         working-directory: .
