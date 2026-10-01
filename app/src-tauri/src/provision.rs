@@ -198,9 +198,34 @@ pub fn start_provision(
                 .env("B2_APP_KEY", config.b2_app_key.clone().unwrap_or_default())
                 .env("RESTIC_PASSWORD", config.restic_password.clone().unwrap_or_default())
                 .stdout(Stdio::piped())
-                .stderr(Stdio::inherit());
+                // Captured, not inherited. It used to go to the parent's
+                // stderr, which for an app launched from a menu is nowhere —
+                // so the likeliest first-run failure of all, sudo refusing
+                // because it has no terminal to ask for a password, produced a
+                // run that reported "failed" and threw the explanation away.
+                .stderr(Stdio::piped());
 
             let mut child = command.spawn().map_err(|e| format!("could not start: {e}"))?;
+
+            // Drained on its own thread. A pipe nobody reads fills up and
+            // blocks the child, and a blocked child here is indistinguishable
+            // from a hang — so this cannot be done after `wait`.
+            let stderr_tail = Arc::new(Mutex::new(Vec::<String>::new()));
+            let stderr_reader = child.stderr.take().map(|stderr| {
+                let sink = Arc::clone(&stderr_tail);
+                std::thread::spawn(move || {
+                    for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                        if let Ok(mut tail) = sink.lock() {
+                            tail.push(line);
+                            // Only the last few: this is a diagnosis, not a
+                            // transcript, and the app shows a single line.
+                            if tail.len() > 5 {
+                                tail.remove(0);
+                            }
+                        }
+                    }
+                })
+            });
 
             if let Some(stdout) = child.stdout.take() {
                 for line in BufReader::new(stdout).lines().map_while(Result::ok) {
@@ -213,8 +238,20 @@ pub fn start_provision(
             }
 
             let status = child.wait().map_err(|e| format!("could not wait: {e}"))?;
+            if let Some(reader) = stderr_reader {
+                let _ = reader.join();
+            }
+
             if !status.success() {
-                return Err(format!("the provisioning script exited with {status}"));
+                let reason = stderr_tail
+                    .lock()
+                    .ok()
+                    .and_then(|tail| tail.iter().rev().find(|l| !l.trim().is_empty()).cloned());
+
+                return Err(match reason {
+                    Some(reason) => format!("the provisioning script exited with {status}: {reason}"),
+                    None => format!("the provisioning script exited with {status}"),
+                });
             }
             Ok(())
         })();
