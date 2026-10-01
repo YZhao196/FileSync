@@ -6,26 +6,32 @@
  * would serialise it and warn about it; holding it here keeps the viewer a
  * function of state the timeline already has.
  *
- * **What is here:** swipe between photos, double-tap to zoom, and the action
- * bar — share, download, favourite, delete.
+ * **What is here:** swipe between photos, double-tap to zoom, swipe down to
+ * dismiss, and the action bar — share, download, favourite, delete.
  *
- * **What is not, and is not pretended:** pinch-to-zoom, swipe-down-to-dismiss,
- * and auto-hiding bars. Each needs a gesture layer (`react-native-gesture-
- * handler`, which is installed, plus reanimated, which is not) and the honest
- * thing is to leave them out rather than ship gestures that half work. Double-
- * tap is included because it needs no gesture library at all.
+ * **What is not, and is not pretended:** pinch-to-zoom and auto-hiding bars.
+ * Pinch needs a gesture layer — `react-native-gesture-handler` is installed,
+ * reanimated is not — and a pinch that half works is worse than one that is
+ * absent. Double-tap and swipe-down both avoid that by using APIs already here:
+ * a tap needs nothing, and the drag uses `PanResponder` and `Animated`.
+ *
+ * The bars do not auto-hide. §2.2 wants them out of the way after a moment, and
+ * that is a timer plus a tap-to-reveal gesture on every page; leaving them up
+ * costs some photo and never hides a control someone is looking for.
  *
  * The top bar shows the filename and date but no Info sheet and no More menu;
  * §2.2's Info sheet wants EXIF the backend does not yet expose.
  */
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import {
   Alert,
+  Animated,
   Dimensions,
   FlatList,
   Image,
   Modal,
+  PanResponder,
   Pressable,
   StyleSheet,
   Text,
@@ -55,6 +61,42 @@ export function PhotoViewer({
 }) {
   const theme = useTheme()
   const [index, setIndex] = useState(initialIndex)
+
+  /**
+   * Swipe down to dismiss — §2.2.
+   *
+   * `PanResponder` rather than a gesture library. The hard part is not the drag
+   * but *claiming* it: the pages are a horizontally paging `FlatList`, and a
+   * responder that takes every touch would stop them paging. So this only
+   * claims a gesture that is clearly vertical — and only when it is more
+   * downward than a finger's wobble, so a left-right swipe is left to the list.
+   *
+   * Animated with React Native's own `Animated`, which is the one animation API
+   * here that needs no extra dependency.
+   */
+  const dragY = useRef(new Animated.Value(0)).current
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) =>
+          gesture.dy > 12 && gesture.dy > Math.abs(gesture.dx) * 1.5,
+        onPanResponderMove: (_event, gesture) => {
+          if (gesture.dy > 0) dragY.setValue(gesture.dy)
+        },
+        onPanResponderRelease: (_event, gesture) => {
+          if (gesture.dy > 120) {
+            Animated.timing(dragY, {
+              toValue: 600,
+              duration: 160,
+              useNativeDriver: true,
+            }).start(() => onClose())
+          } else {
+            Animated.spring(dragY, { toValue: 0, useNativeDriver: true }).start()
+          }
+        },
+      }),
+    [dragY, onClose],
+  )
   // Typed as a plain rectangle, not `ScaledSize`: it is seeded from the window
   // and then replaced by `onLayout`, which reports a `LayoutRectangle` and has
   // no `scale` or `fontScale`.
@@ -131,18 +173,20 @@ export function PhotoViewer({
           </Pressable>
         </View>
 
-        <FlatList
-          ref={listRef}
-          data={photos}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          initialScrollIndex={initialIndex}
-          getItemLayout={(_, i) => ({ length: size.width, offset: size.width * i, index: i })}
-          keyExtractor={(photo) => photo.id}
-          onMomentumScrollEnd={onScroll}
-          renderItem={({ item }) => <ViewerPage photo={item} size={size} />}
-        />
+        <Animated.View style={[styles.flex, { transform: [{ translateY: dragY }] }]} {...pan.panHandlers}>
+          <FlatList
+            ref={listRef}
+            data={photos}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            initialScrollIndex={initialIndex}
+            getItemLayout={(_, i) => ({ length: size.width, offset: size.width * i, index: i })}
+            keyExtractor={(photo) => photo.id}
+            onMomentumScrollEnd={onScroll}
+            renderItem={({ item }) => <ViewerPage photo={item} size={size} />}
+          />
+        </Animated.View>
 
         <View style={[styles.bottomBar, { paddingBottom: theme.spacing['spacing-06'] }]}>
           <ViewerAction

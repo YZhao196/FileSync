@@ -72,7 +72,7 @@ the same reason the desktop denies it.
 |---|---|
 | First Run | Address and credentials, per-backend validation, stored in the OS keystore |
 | Photos | Timeline, three-column grid, date headers, filter chips, paging |
-| Photo viewer | Swipe between photos, double-tap zoom, share / download / favourite / delete |
+| Photo viewer | Swipe between photos, double-tap zoom, swipe down to dismiss, share / download / favourite / delete |
 | Multi-select | Long-press to start; share, add to album, favourite, delete |
 | Albums | List and contents, behind a Timeline/Albums control in the Photos tab; same viewer and selection as the timeline |
 | Thumbnail cache | On disk, `file://` URIs, disposable; reported and clearable in Settings |
@@ -83,9 +83,11 @@ the same reason the desktop denies it.
 
 ## What does not
 
-Pinch-to-zoom and swipe-to-dismiss in the viewer. These are **absent rather
-than stubbed** — a control that does nothing teaches the reader to distrust the
-ones that work.
+Pinch-to-zoom in the viewer, and the auto-hiding bars. These are **absent
+rather than stubbed** — a control that does nothing teaches the reader to
+distrust the ones that work. Both need a gesture layer this deliberately does
+not carry yet; swipe-down-to-dismiss and double-tap zoom are here because they
+do not.
 
 Four things are missing by decision rather than by omission, and each is
 recorded where the code is:
