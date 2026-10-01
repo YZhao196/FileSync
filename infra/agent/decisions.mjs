@@ -165,18 +165,27 @@ export function createDecisions({
   }
 
   /**
-   * A cached caption, or a fresh one. `null` means the photo could not be read
-   * at all — distinct from a caption the decision model then failed to score.
+   * A cached caption, or a reason there is not one.
+   *
+   * The reason is the point. This used to return a bare `null` for both ways it
+   * can fail, and the caller reported both as "the photo could not be read" —
+   * so a stopped Ollama sent somebody to look at their photographs, which were
+   * fine, instead of at the model, which was not. Same shape of mistake as a
+   * notification naming a threshold it does not use: confidently wrong about
+   * its own reason is the kind that gets acted on.
    */
   async function captionFor(id) {
     const cached = await captions.get(id)
-    if (cached) return cached
+    if (cached) return { text: cached }
+
     const image = await fetchOriginalBase64(id)
-    if (!image) return null
+    if (!image) return { reason: 'Immich would not return the photo' }
+
     const text = await describe(image)
-    if (!text) return null
+    if (!text) return { reason: 'the vision model gave no answer' }
+
     await captions.set(id, text)
-    return text
+    return { text }
   }
 
   /**
@@ -225,11 +234,12 @@ export function createDecisions({
     // One at a time, scored as an idle-time batch rather than a big-bang scan.
     for (const id of slice) {
       try {
-        const text = await captionFor(id)
-        if (!text) {
-          failed.push({ id, reason: 'the photo could not be read' })
+        const caption = await captionFor(id)
+        if (!caption.text) {
+          failed.push({ id, reason: caption.reason })
           continue
         }
+        const text = caption.text
         const answers = await callLaya(text, SCORE_QUESTION)
         const score = answers
           ? normalizeScore(answers[SCORE_ID]?.score, SCORE_SCALE.length)
@@ -258,9 +268,12 @@ export function createDecisions({
     const suggestions = []
 
     for (const id of slice) {
-      const text = await captionFor(id)
-      if (!text) continue
-      const answers = await callLaya(text, albumQuestion(albums))
+      const caption = await captionFor(id)
+      // A photo that could not be captioned is simply left out of the
+      // suggestions rather than reported: the picker has nothing to show for
+      // it, and this route has no failures list to put a reason in.
+      if (!caption.text) continue
+      const answers = await callLaya(caption.text, albumQuestion(albums))
       const picked = answers ? readChoice(answers.album) : null
       // A label the user has no album for is not a suggestion, whatever the
       // model thought — the picker has nothing to render for it.
