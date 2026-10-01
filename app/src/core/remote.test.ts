@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseMultiStatus } from './remote'
+import { basicAuth, parseMultiStatus } from './remote'
 
 const BASE = '/remote.php/dav/files/admin'
 
@@ -78,5 +78,33 @@ describe('parseMultiStatus', () => {
 
   it('survives malformed XML without throwing', () => {
     expect(() => parseMultiStatus('<not xml', '/projects', `${BASE}/projects/`)).not.toThrow()
+  })
+})
+
+describe('basicAuth', () => {
+  /** What a server does when it reads the header: base64 → bytes → UTF-8. */
+  function decodeBasic(header: string): string {
+    const binary = atob(header.replace('Basic ', ''))
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0))
+    return new TextDecoder().decode(bytes)
+  }
+
+  it('encodes an ASCII credential', () => {
+    expect(basicAuth('admin', 'hunter2')).toBe(`Basic ${btoa('admin:hunter2')}`)
+  })
+
+  // `btoa` throws `InvalidCharacterError` on any code unit above U+00FF. This
+  // reaches the user as a connection test that fails on a character rather than
+  // reporting what it found, which reads as a broken server.
+  it('does not throw on a credential outside Latin1', () => {
+    expect(() => basicAuth('Jörg Müller', 'pässwörd—写真')).not.toThrow()
+  })
+
+  it('round-trips a non-Latin1 credential through base64', () => {
+    expect(decodeBasic(basicAuth('Jörg Müller', 'pässwörd—写真'))).toBe('Jörg Müller:pässwörd—写真')
+  })
+
+  it('handles an emoji, which is two code units', () => {
+    expect(decodeBasic(basicAuth('user', 'pw🔐'))).toBe('user:pw🔐')
   })
 })

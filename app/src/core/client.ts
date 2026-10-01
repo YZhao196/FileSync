@@ -9,7 +9,7 @@
 import { nativeFetch } from '../native/bridge'
 import type { Backends } from './backends'
 import { createMockBackends } from './mock'
-import { createLiveBackends } from './remote'
+import { basicAuth, createLiveBackends } from './remote'
 import type {
   Connection,
   ConnectionState,
@@ -129,7 +129,10 @@ export async function testConnection(
     probe(conn.nextcloudUrl && `${conn.nextcloudUrl}/remote.php/dav/files/${encodeURIComponent(creds.nextcloudUser)}/`, {
       method: 'PROPFIND',
       headers: {
-        authorization: `Basic ${btoa(`${creds.nextcloudUser}:${creds.nextcloudAppPassword}`)}`,
+        // Through `basicAuth`, not `btoa`: a username or password with any
+        // non-Latin1 character made the raw call throw, so the connection test
+        // failed on a character instead of reporting what it found.
+        authorization: basicAuth(creds.nextcloudUser, creds.nextcloudAppPassword),
         depth: '0',
       },
     }),

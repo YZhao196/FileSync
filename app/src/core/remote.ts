@@ -2,28 +2,42 @@
  * Live backends. Arm's-length HTTP clients for Immich, Nextcloud and the host
  * agent — no vendor code is imported, vendored or linked (PLAN.md §13.4).
  *
- * UNVERIFIED: none of this has been run against a real server, because none
- * exists yet. The *UI* is known to work, since the placeholder backend is
- * exercised by tests and by hand; what is guessed is every wire format below.
- * The full table with the risk on each row is for-human.md §7. In summary:
+ * CHECKED against Immich's OpenAPI spec at v3.2.4 (the release the provisioning
+ * script fetches via `releases/latest`) and against its server source; Nextcloud
+ * against its WebDAV documentation. What has still never happened is a request
+ * to a live server, so anything a spec cannot settle keeps a labelled
+ * `UNVERIFIED:` note. Three calls were outright wrong and are fixed below —
+ * `thumb`, `albumAssets` and `share`.
  *
- *   Immich    `POST /api/search/metadata` `{page, size}` — and whether the
- *             results live at `assets.items`
- *             `POST /api/search/smart` `{query}` — same envelope question
- *             `GET  /api/albums` — a bare array, or a wrapper
- *             `GET  /api/albums/{id}` — the shape of `assets`
- *             `PUT  /api/assets/{id}` `{isFavorite}` — changed across versions
- *             `DELETE /api/assets` `{ids, force}` — body shape
- *             `PUT  /api/albums/{id}/assets` `{ids}` — ids, or a wrapper
- *             `POST /api/shared-links` — `{type, assetIds}`, and `key` → URL
- *   Nextcloud `PROPFIND` XML — parsed and tested here, but the *server's* XML
- *             dialect is not; `MKCOL`, `MOVE`, `DELETE` — `Destination` must be
- *             absolute and `Overwrite: F` refuses a collision
+ * Immich versions matter, and several shapes changed across them. Each of these
+ * was confirmed against the spec tagged at the stated version:
+ *   - `GET /api/albums/{id}` stopped returning `assets` in **v3.0.0**;
+ *     `AlbumResponseDto` has had no such field since (it did in v2.5.0 and
+ *     earlier). Album contents now come from the search endpoint.
+ *   - `POST /api/shared-links` with `type: 'ALBUM'` requires an `albumId` and
+ *     rejects a bare `assetIds` list with 400. Sharing selected photos is always
+ *     `INDIVIDUAL`, which accepts any number of asset ids.
+ *   - The large thumbnail render is `/api/assets/{id}/thumbnail?size=preview`.
+ *     There has never been an `/api/assets/{id}/preview` route.
+ *   - `page` and `nextPage` on the search response are deprecated from
+ *     **v3.2.0** in favour of `cursor`/`nextCursor`, but still work.
  *
- * Two things are already known to bite, and neither is a bug in this file: an
- * Immich key needs the `all` permission (a scoped key 403s from every metadata
- * route), and Immich authenticates with `x-api-key` rather than
- * `Authorization: Bearer`.
+ * The response envelope is settled: `SearchResponseDto` is
+ * `{ albums, assets: { items, ... } }`, so `assets.items` is right.
+ *
+ * Auth, both from the v3.2.4 source: Immich authenticates with the `x-api-key`
+ * header (`Authorization: Bearer` is for its own JWTs, not API keys). Since
+ * **v2.0.0** every route declares the permission it needs — `/search/metadata`
+ * wants `asset.read` — so a scoped key is accepted where its permissions cover
+ * the route; an undeclared route would default to `all`. That default is where
+ * the old "a scoped key 403s from every metadata route" note came from: it was
+ * true of v1.136.0, where the routes declared nothing, and is no longer true of
+ * v2.0.0 onward. `all` is still the simple choice, because this client touches
+ * most of the permissions anyway.
+ *
+ * One correction to an earlier note: the server *does* read an `?apiKey=` query
+ * parameter (auth.service.ts, v3.2.4 and back to v1.136.0). The client keeps
+ * sending the header regardless — a key in a URL leaks into logs and referrers.
  */
 
 import { nativeFetch, type NativeResponse } from '../native/bridge'
@@ -108,11 +122,18 @@ class ImmichPhotoBackend implements PhotoBackend {
    * does the paging and filtering; the client only renders what comes back
    * (PLAN.md §11 — "server-side ML is free via API").
    *
-   * UNVERIFIED: the response envelope — specifically whether `assets.items` is
-   * the right path, and whether `nextPage` exists — is a guess. `hasMore` is
-   * therefore derived from the page coming back full rather than from any
-   * field, so a wrong guess about the envelope cannot silently stop the
+   * The envelope is confirmed: at v3.2.4 the response is `SearchResponseDto`,
+   * which carries the page at `assets.items`. `nextPage` exists too, but this
+   * client deliberately does not trust it — `hasMore` comes from the page coming
+   * back full, which holds for any paging scheme and cannot silently stop the
    * timeline at one page.
+   *
+   * UNVERIFIED: `page` is deprecated from v3.2.0 in favour of `cursor`, and
+   * `takenAfter`/`takenBefore` likewise (the structured `filter` tree is the new
+   * shape). All three still work — a request carrying none of
+   * `filter`/`orderBy`/`cursor` is routed down the legacy path, which honours
+   * them — but that path is on its way out and has not been exercised against a
+   * live v3 server.
    */
   private async searchMetadata(opts: {
     page?: number
@@ -144,17 +165,24 @@ class ImmichPhotoBackend implements PhotoBackend {
   }
 
   /**
-   * Immich's thumbnail endpoint authenticates with `x-api-key` and offers no
-   * query-parameter equivalent, so the bytes are fetched here and handed back
-   * for the caller to turn into an object URL.
+   * Immich has a single thumbnail route; the `size` parameter chooses the
+   * render. `thumbnail` is the small cached one, `preview` the large one — both
+   * pre-generated, never resized on request (PLAN.md §11).
    *
-   * `thumbnail` is the small cached render, `preview` the large one. Both are
-   * pre-generated — never resized on request (PLAN.md §11).
+   * This was wrong twice over and is fixed here: there is no
+   * `/api/assets/{id}/preview` route, and `small`/`large` are not valid `size`
+   * values. At v3.2.4 `AssetMediaSize` is one of
+   * `thumbnail|preview|fullsize|original`.
+   *
+   * The bytes are fetched rather than used in an `<img src>` because the call
+   * needs the `x-api-key` header. The server also reads an `?apiKey=` query
+   * parameter, which would allow a plain URL, but the header is kept — a key in
+   * a URL leaks into logs and referrers.
    */
   async thumb(id: PhotoId, size: 'small' | 'large'): Promise<Blob | null> {
     const px = size === 'small' ? 'thumbnail' : 'preview'
     try {
-      const res = await req(`${this.baseUrl}/api/assets/${id}/${px}?size=${size}`, {
+      const res = await req(`${this.baseUrl}/api/assets/${id}/thumbnail?size=${px}`, {
         headers: { 'x-api-key': this.apiKey },
       })
       return await res.blob()
@@ -165,6 +193,14 @@ class ImmichPhotoBackend implements PhotoBackend {
     }
   }
 
+  /**
+   * Semantic search. Endpoint and body confirmed at v3.2.4: `POST
+   * /api/search/smart` taking `SmartSearchDto.query`, returning the same
+   * `assets.items` envelope as the timeline.
+   *
+   * UNVERIFIED: a server with machine learning disabled answers 400 here
+   * ("Smart search is not enabled"), which has not been seen end to end.
+   */
   async search(query: string): Promise<Photo[]> {
     const res = await req(`${this.baseUrl}/api/search/smart`, {
       method: 'POST',
@@ -175,6 +211,8 @@ class ImmichPhotoBackend implements PhotoBackend {
     return (json.assets?.items ?? []).map(toPhoto)
   }
 
+  /** `GET /api/albums` returns a bare array of `AlbumResponseDto` — no wrapper.
+   *  Confirmed at v3.2.4; `albumName` and `assetCount` are both present. */
   async albums(): Promise<Album[]> {
     const res = await req(`${this.baseUrl}/api/albums`, { headers: this.headers })
     const json = (await res.json()) as Array<{
@@ -190,10 +228,30 @@ class ImmichPhotoBackend implements PhotoBackend {
     }))
   }
 
+  /**
+   * `GET /api/albums/{id}` no longer carries the album's assets: v3.0.0 removed
+   * the `assets` field from `AlbumResponseDto`, so reading it there read
+   * `undefined` and every album rendered empty. Immich's own UI reads album
+   * contents through the metadata search, filtered by `albumIds`, and so does
+   * this.
+   *
+   * `albumIds` is marked deprecated from v3.2.0 in favour of the `filter` tree,
+   * but it still works — a request without `filter`/`orderBy`/`cursor` takes the
+   * legacy path, which honours it — and it is accepted back to v1, whereas
+   * `filter` only exists from v3.2.0. It is the more compatible choice.
+   *
+   * UNVERIFIED: `size` is capped at 1000 by the API, so an album of more than
+   * 1000 assets shows only the first thousand. That the cap exists is a spec
+   * fact; what the album screen does at that ceiling has not been seen.
+   */
   async albumAssets(albumId: string): Promise<Photo[]> {
-    const res = await req(`${this.baseUrl}/api/albums/${albumId}`, { headers: this.headers })
-    const json = (await res.json()) as { assets?: ImmichAsset[] }
-    return (json.assets ?? []).map(toPhoto)
+    const res = await req(`${this.baseUrl}/api/search/metadata`, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({ albumIds: [albumId], size: 1000 }),
+    })
+    const json = (await res.json()) as { assets?: { items?: ImmichAsset[] } }
+    return (json.assets?.items ?? []).map(toPhoto)
   }
 
   async original(id: PhotoId): Promise<Blob> {
@@ -213,8 +271,11 @@ class ImmichPhotoBackend implements PhotoBackend {
 
   /**
    * Deletes go to Immich's trash, not straight to gone — `force: false` is the
-   * point. Deletion is recoverable for the retention window, which is what
-   * PLAN.md §10 asks for: the app must not be the thing that destroys data.
+   * point, and it is confirmed rather than assumed: at v3.2.4 the body is
+   * `AssetBulkDeleteDto { ids, force }`, and the service sets the assets'
+   * status to `Trashed` when `force` is falsy and `Deleted` when it is true.
+   * Deletion is recoverable for the retention window, which is what PLAN.md §10
+   * asks for: the app must not be the thing that destroys data.
    */
   async remove(ids: PhotoId[]): Promise<void> {
     await req(`${this.baseUrl}/api/assets`, {
@@ -224,6 +285,9 @@ class ImmichPhotoBackend implements PhotoBackend {
     })
   }
 
+  /** `PUT /api/albums/{id}/assets` takes `BulkIdsDto` — a bare `{ ids }`, no
+   *  wrapper. Confirmed at v3.2.4. (A newer `PUT /albums/assets` also exists
+   *  from v3, but the per-album route is still present and is what this uses.) */
   async addToAlbum(albumId: string, ids: PhotoId[]): Promise<void> {
     await req(`${this.baseUrl}/api/albums/${albumId}/assets`, {
       method: 'PUT',
@@ -232,14 +296,23 @@ class ImmichPhotoBackend implements PhotoBackend {
     })
   }
 
+  /**
+   * Creates a public share link for the selected assets.
+   *
+   * Always `INDIVIDUAL`: that type accepts any number of `assetIds`, whereas
+   * `ALBUM` requires an `albumId` and rejects a bare asset list with
+   * 400 "Invalid albumId" (shared-link.service.ts, v3.2.4). The old
+   * `ids.length > 1 → ALBUM` branch was therefore wrong for every multi-select.
+   *
+   * The response's `key` is the link's encryption key and the public URL is
+   * `{base}/share/{key}` — confirmed by the web app's own `(user)/share/[key]`
+   * route.
+   */
   async share(ids: PhotoId[]): Promise<string> {
     const res = await req(`${this.baseUrl}/api/shared-links`, {
       method: 'POST',
       headers: this.headers,
-      body: JSON.stringify({
-        type: ids.length === 1 ? 'INDIVIDUAL' : 'ALBUM',
-        assetIds: ids,
-      }),
+      body: JSON.stringify({ type: 'INDIVIDUAL', assetIds: ids }),
     })
     const json = (await res.json()) as { key?: string }
     if (!json.key) throw new Error('Immich returned no share key')
@@ -284,7 +357,7 @@ class NextcloudFileBackend implements FileBackend {
   }
 
   private get auth(): string {
-    return `Basic ${btoa(`${this.user}:${this.appPassword}`)}`
+    return basicAuth(this.user, this.appPassword)
   }
 
   private get headers(): HeadersInit {
@@ -313,7 +386,13 @@ class NextcloudFileBackend implements FileBackend {
    * WebDAV, and a rename is just a move within the same collection.
    *
    * `Destination` must be an absolute URL, and `Overwrite: F` makes a collision
-   * fail rather than silently replace the target.
+   * fail rather than silently replace the target. Both are confirmed against
+   * Nextcloud's WebDAV docs. The URL here is absolute because the connection's
+   * Nextcloud base already carries a scheme and host (see `deriveConnection`).
+   *
+   * UNVERIFIED: a Nextcloud reached by a hostname not in its `trusted_domains`
+   * answers 400 to a Destination it does not recognise as its own, which a
+   * Tailscale name may or may not be. That is a server setting, not a client bug.
    */
   async move(from: string, to: string): Promise<void> {
     await req(this.root + encodePath(from), {
@@ -349,12 +428,40 @@ function encodePath(p: string): string {
 }
 
 /**
+ * `Basic` credentials, UTF-8 encoded first.
+ *
+ * `btoa` alone throws `InvalidCharacterError` on any code unit above U+00FF, so
+ * a username or password with an accent, a non-Latin script or an emoji took
+ * down every call that used it — including the connection probe on First Run.
+ * Encoding to bytes first is what RFC 7617 expects anyway, and is byte-identical
+ * for ASCII, which is the common case.
+ *
+ * Exported so the probe in `client.ts` uses this rather than a second `btoa`.
+ *
+ * UNVERIFIED: whether Nextcloud expects UTF-8 or ISO-8859-1 for a non-ASCII
+ * Basic credential. RFC 7617 permits UTF-8; ASCII is unaffected either way.
+ */
+export function basicAuth(user: string, password: string): string {
+  const bytes = new TextEncoder().encode(`${user}:${password}`)
+  let binary = ''
+  for (const b of bytes) binary += String.fromCharCode(b)
+  return `Basic ${btoa(binary)}`
+}
+
+/**
  * Exported for testing — WebDAV XML is the fiddliest part of this file.
  *
  * `selfHref` is the server-absolute path that was requested. PROPFIND Depth:1
  * returns the collection itself alongside its children, and the hrefs are
  * server-absolute while `parentPath` is app-relative, so the self entry can only
  * be identified by comparing against the request path.
+ *
+ * Every property read here — `getcontentlength`, `getlastmodified`,
+ * `getcontenttype`, `resourcetype/collection` — is in the default set a
+ * body-less PROPFIND returns, and all live in the `DAV:` namespace, so the
+ * request needs no XML body and the namespace lookups are right. Confirmed
+ * against Nextcloud's WebDAV docs. UNVERIFIED: the live XML dialect itself —
+ * doc-versus-daemon is exactly the kind of gap a spec cannot close.
  */
 export function parseMultiStatus(xml: string, parentPath: string, selfHref = ''): FileEntry[] {
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
@@ -410,7 +517,7 @@ function humanBytes(n: number): string {
 /**
  * Contract the host agent must serve. Nothing implements it yet — the agent is
  * the piece that makes the status panel possible, and it is the first thing
- * for-human.md asks to be deployed.
+ * filesynapsetodo.md asks to be deployed.
  *
  *   GET  /api/status                 -> ServerStatus
  *   POST /api/backup                 -> 202
@@ -449,7 +556,7 @@ class AgentServerBackend implements ServerBackend {
   /**
    * UNVERIFIED: none of these four routes has ever been served by a deployed
    * agent. They mirror the status routes above, which are themselves unverified
-   * against a real host (for-human.md §7).
+   * against a real host (filesynapsetodo.md §7).
    *
    * A modelled failure — Ollama down, the model never pulled — comes back as
    * `200 {ok: false}`, matching the agent's convention that a panel saying
