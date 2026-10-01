@@ -141,6 +141,25 @@ https://download.docker.com/linux/${DISTRO} $(. /etc/os-release && echo "$VERSIO
   '
 fi
 
+# Whether or not we installed it, the daemon has to be running.
+#
+# "docker --version" answers without one, so a machine where Docker is installed
+# and stopped looks exactly like a working one — and the "systemctl enable --now"
+# above lives in the "Docker is absent" branch, so it never ran. The first thing
+# to notice was "docker compose up -d", failing with "Cannot connect to the
+# Docker daemon", which names a step three along from the actual problem.
+#
+# A no-op when it is already up, which is the ordinary case. Written as an
+# if-statement rather than "docker info && exit 0": under set -e the shorthand
+# has to be read against the rules about which part of an && list is exempt, and
+# this file has been bitten by that class of thing before.
+step "Make sure Docker is running" run '
+  if docker info >/dev/null 2>&1; then
+    exit 0
+  fi
+  systemctl enable --now docker
+'
+
 step "Install utilities" run 'apt-get install -y -qq curl jq openssl'
 
 # ── Storage folders ──────────────────────────────────────────────────────

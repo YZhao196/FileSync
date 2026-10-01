@@ -263,6 +263,15 @@ check(
   `${JSON.stringify(first.result.stdout?.split('\n').filter(Boolean).slice(-3))} | stderr: ${first.result.stderr?.trim().slice(-200)}`,
 )
 
+// Whether or not Docker was installed, its daemon has to be started.
+// "docker --version" answers without one, so a machine where Docker is present
+// and stopped passes every earlier check and then fails at the first
+// `docker compose up` with "Cannot connect to the Docker daemon".
+check(
+  'it makes sure the Docker daemon is running, not merely installed',
+  first.result.stdout?.includes('Make sure Docker is running') === true,
+)
+
 const compose = read(join(nextcloud, 'docker-compose.yml'))
 check('the Nextcloud compose is written', compose !== null)
 check(

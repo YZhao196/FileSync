@@ -88,6 +88,19 @@ pub fn preflight() -> Preflight {
     // machine with one and not the other is a common half-configured state.
     let compose_version = run("docker", &["compose", "version"]);
 
+    // `docker --version` prints the *client* version without contacting the
+    // daemon, so Docker installed-and-stopped looks exactly like Docker working.
+    // `docker info` is the first command that needs an answer from the daemon,
+    // so it is the one that can tell the difference.
+    //
+    // Checked because it is a real state — a fresh install whose service did not
+    // start, or a service someone stopped — and it used to pass preflight, skip
+    // provisioning's own `systemctl enable --now docker` (which lives in the
+    // "Docker is absent" branch), and then fail at the stack with "Cannot
+    // connect to the Docker daemon", which names the wrong step entirely.
+    let daemon_running =
+        is_linux && run("docker", &["info", "--format", "{{.ServerVersion}}"]).is_some();
+
     let is_root = if cfg!(windows) {
         false
     } else {
@@ -115,6 +128,16 @@ pub fn preflight() -> Preflight {
         // the user needs to expect a password prompt.
         warnings
             .push("Provisioning will need administrator rights to install packages.".into());
+    }
+
+    if is_linux && docker_version.is_some() && !daemon_running {
+        // A warning rather than a blocker: provisioning starts it. Saying so is
+        // the point — otherwise this is discovered two steps later, wearing the
+        // costume of a stack that will not come up.
+        warnings.push(
+            "Docker is installed but its daemon is not running. Provisioning will start it."
+                .into(),
+        );
     }
 
     let vols = if is_linux { volumes() } else { Vec::new() };
