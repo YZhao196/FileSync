@@ -93,6 +93,17 @@ if [[ ! -f /etc/debian_version ]]; then
   exit 1
 fi
 
+# The two are checked separately because they are separate Docker repositories,
+# and the codename does not say which one it belongs to — nothing about "jammy"
+# indicates Ubuntu. Checked here rather than at the install step so an
+# unsupported distribution is refused by name, instead of arriving as a 404
+# from apt-get half a minute later.
+DISTRO_ID="$( . /etc/os-release && echo "${ID:-}" )"
+if [[ "$DISTRO_ID" != "debian" && "$DISTRO_ID" != "ubuntu" ]]; then
+  emit "preflight" failed "Docker publishes no repository for '${DISTRO_ID:-unknown}' — Debian and Ubuntu only"
+  exit 1
+fi
+
 if [[ "$PHOTOS_DIR" == "$FILES_DIR" ]]; then
   emit "preflight" failed "the photos and files folders must differ"
   exit 1
@@ -113,10 +124,16 @@ else
     # sources.list.d, but a stripped or container-derived image may not, and this
     # script has no business depending on a directory it writes into.
     install -m 0755 -d /etc/apt/keyrings /etc/apt/sources.list.d
-    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+    # The distribution is asked for rather than assumed. Debian and Ubuntu have
+    # separate Docker repositories, and asking the Debian one for an Ubuntu
+    # codename is a 404 on apt-get update — which stopped this run at its second
+    # step on one of the two systems the preflight accepts. It was written
+    # against Debian and only ever read back on Debian.
+    DISTRO="$( . /etc/os-release && echo "$ID" )"
+    curl -fsSL "https://download.docker.com/linux/${DISTRO}/gpg" -o /etc/apt/keyrings/docker.asc
     chmod a+r /etc/apt/keyrings/docker.asc
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
-https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+https://download.docker.com/linux/${DISTRO} $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
       > /etc/apt/sources.list.d/docker.list
     apt-get update -qq
     apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
@@ -518,6 +535,16 @@ if [[ -n "${SOURCE_ADDRESS:-}" && "${TRANSFER:-fresh}" != "fresh" ]]; then
       rsync -aH --info=progress2 'root@${SOURCE_ADDRESS}:${FILES_DIR}/' '$FILES_DIR/'
     "
   elif [[ "${TRANSFER}" == "restore" ]]; then
+    # Restoring reads the repository that the backup block writes, and both the
+    # credentials file and the restic binary come from that same block. So this
+    # combination is a request for something that was never set up, and the
+    # failure would otherwise name the symptom — "no such file:
+    # /etc/filesynapse/backup.env" — rather than the cause.
+    if [[ ! -f /etc/filesynapse/backup.env ]]; then
+      emit "Restore the latest snapshot" failed \
+        "restoring needs the backup credentials that create the repository, and none were supplied"
+      exit 1
+    fi
     step "Restore the latest snapshot" run "
       . /etc/filesynapse/backup.env
       restic restore latest --target /
