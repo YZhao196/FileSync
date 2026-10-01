@@ -7,7 +7,14 @@ import { useToast } from '../components/Toaster'
 import type { Preflight } from '../core/types'
 import { compactBytes } from '../lib/format'
 import { parentOf, sameRoot } from '../lib/paths'
-import { pickFolder, preflight, provisionStatus, startProvision, type ProvisionRun } from '../native/bridge'
+import {
+  openExternal,
+  pickFolder,
+  preflight,
+  provisionStatus,
+  startProvision,
+  type ProvisionRun,
+} from '../native/bridge'
 import { useApp } from '../state/store'
 
 /**
@@ -298,6 +305,39 @@ export function Provision() {
                 'Point your phone at Immich and let it upload.',
               ]}
             />
+
+            {/*
+              The first two steps need a browser, and the address is derivable —
+              so they are a click rather than something to read off this screen
+              and type into one. Both open over Tailscale, which is the only
+              place they exist.
+
+              The failure is reported rather than swallowed: opening a URL needs
+              the desktop shell, and in a browser build it does nothing. Saying
+              the address is more useful than a button that appears to work.
+            */}
+            <Actions>
+              <Button
+                variant="default"
+                leadingVisual={carbonIcon('external')}
+                onClick={async () => {
+                  const url = `http://${name}:2283`
+                  if (!(await openExternal(url))) show(`Open ${url} in a browser`)
+                }}
+              >
+                Open Immich
+              </Button>
+              <Button
+                variant="default"
+                leadingVisual={carbonIcon('external')}
+                onClick={async () => {
+                  const url = `http://${name}:8080`
+                  if (!(await openExternal(url))) show(`Open ${url} in a browser`)
+                }}
+              >
+                Open Nextcloud
+              </Button>
+            </Actions>
 
             {/*
               All three credentials on one screen, in the order they are
