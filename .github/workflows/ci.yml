@@ -168,6 +168,14 @@ jobs:
           node infra/agent/captionStore.test.mjs
           node infra/agent/containers.test.mjs
 
+      # Runs provision.sh for real against a sandbox — its absolute paths
+      # rewritten, every external command stubbed. The script itself executes:
+      # heredocs, quoting, `set -e`, the `run` helper and the step sequencing
+      # all run. What it cannot prove is that apt and docker do anything with
+      # what it wrote, which is what provision-smoke.yml is for.
+      - name: Provisioning dry run
+        run: node infra/provision/provision.test.mjs
+
       # The compose files can only be checked where Docker exists, which is here
       # and not on the Windows dev machine. Without this a YAML slip or a bad
       # interpolation is discovered by the person running provisioning for the
