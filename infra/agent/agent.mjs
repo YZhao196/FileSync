@@ -50,7 +50,22 @@ const BACKUP_STATUS_PATH =
 const BACKUP_WRAPPER =
   process.env.AGENT_BACKUP_WRAPPER ?? '/usr/local/bin/filesynapse-backup'
 
-/** How old a snapshot may be before an inferred run reads as not current. */
+/**
+ * How old a snapshot may be before an inferred run reads as not current.
+ *
+ * Stricter than the app's `BACKUP_CURRENT_WINDOW_MS`, which is 48 hours, and the
+ * stricter one is the one that governs: the app's `isBackupCurrent` requires
+ * `lastRunOk`, so this value decides what the tray and the notifications say. A
+ * snapshot forty hours old reads as stale here and therefore there, even though
+ * the app's own note says 48 hours is deliberate so that a run slipping a few
+ * hours does not read as a failure.
+ *
+ * Being the stricter of the two is defensible — this infers success from an
+ * artefact that does not prove it, where the app is deciding how loud to be
+ * about a fact it has been handed, and that argues for being *less* generous
+ * here rather than more. Being the undocumented one was not. Move one, move the
+ * other, or say in both places why not.
+ */
 const BACKUP_CURRENT_MS = 36 * 3600 * 1000
 
 /**

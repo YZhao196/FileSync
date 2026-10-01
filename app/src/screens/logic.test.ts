@@ -186,6 +186,27 @@ describe('isBackupCurrent', () => {
     expect(isBackupCurrent({ lastRunAt: hoursAgo(1), lastRunOk: false } as never)).toBe(false)
   })
 
+  it('holds the window at 48 hours, not somewhere near it', () => {
+    // The cases above sit at 3 and 72 — far from the boundary, so they would
+    // pass for any window between four hours and three days. These pin the
+    // number itself, because it is one of two and the other one is stricter.
+    expect(isBackupCurrent({ lastRunAt: hoursAgo(47), lastRunOk: true } as never)).toBe(true)
+    expect(isBackupCurrent({ lastRunAt: hoursAgo(49), lastRunOk: true } as never)).toBe(false)
+  })
+
+  it('is not the whole story, because the agent applies 36 hours first', () => {
+    // `BACKUP_CURRENT_MS` in `infra/agent/agent.mjs` infers `lastRunOk` from
+    // snapshot age at 36 hours on a server with no verdict file. So a run 40
+    // hours old arrives here as `lastRunOk: false`, and this function reports
+    // stale — even though its own window would have called 40 hours fine.
+    //
+    // The test asserts the *composition*, because that is the behaviour and it
+    // is not visible from either file alone.
+    expect(isBackupCurrent({ lastRunAt: hoursAgo(40), lastRunOk: false } as never)).toBe(false)
+    // And would have said otherwise had the agent been as forgiving.
+    expect(isBackupCurrent({ lastRunAt: hoursAgo(40), lastRunOk: true } as never)).toBe(true)
+  })
+
   it('rejects a backup that has never run', () => {
     expect(isBackupCurrent({ lastRunAt: null, lastRunOk: true } as never)).toBe(false)
     expect(isBackupCurrent(undefined)).toBe(false)
