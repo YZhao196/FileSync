@@ -1,42 +1,40 @@
-import { StatusBar } from 'expo-status-bar'
-import { StyleSheet, Text, View } from 'react-native'
-
 /**
- * A placeholder, and deliberately a truthful one.
+ * The mobile client's entry point — the shape of the app, and nothing else.
  *
- * The scaffold is real — the shared logic is copied, the polyfills are in place
- * and the desktop's own tests run against it — but no screen exists yet. The
- * screens are written twice, not ported (PLAN.md §11), so the desktop's cannot
- * be reused here.
+ * The provider order is load-bearing:
  *
- * This is replaced by the navigation shell and the first real screen; until
- * then it says what is true rather than showing a gallery of invented photos.
- * A fabricated first screen is the kind of thing that survives into a build and
- * has to be hunted down later.
+ *   GestureHandlerRootView   must wrap everything that can be swiped, and must
+ *                            be the outermost native view.
+ *   SafeAreaProvider         insets for the notch and the home indicator; the
+ *                            navigation container reads it.
+ *   ThemeProvider            resolves light/dark once, so every screen below
+ *                            reads tokens from context rather than the OS.
+ *   SessionProvider          the connection and the credentials, which decides
+ *                            whether First Run or the tabs render.
+ *
+ * `index.ts` imports the polyfills before any of this, which matters because
+ * the session is what constructs the backends.
  */
+
+import { StatusBar } from 'expo-status-bar'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
+
+import { RootNavigator } from './src/navigation/RootNavigator'
+import { SessionProvider } from './src/state/session'
+import { ThemeProvider } from './src/theme/ThemeProvider'
+
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>FileSynapse</Text>
-      <Text style={styles.note}>Screens not built yet.</Text>
-      <StatusBar style="auto" />
-    </View>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <SessionProvider>
+            <RootNavigator />
+            <StatusBar style="auto" />
+          </SessionProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   )
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  note: {
-    fontSize: 15,
-    opacity: 0.6,
-  },
-})

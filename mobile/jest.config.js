@@ -21,6 +21,12 @@ module.exports = {
   moduleNameMapper: {
     ...(preset.moduleNameMapper ?? {}),
     '^vitest$': '<rootDir>/test/vitest-shim.js',
+    // AsyncStorage is a native module, so under Jest it resolves to an
+    // implementation that immediately throws about a null NativeModule. The
+    // package ships an in-memory stand-in for exactly this; pointing at it is
+    // the documented fix rather than something to work around.
+    '^@react-native-async-storage/async-storage$':
+      '@react-native-async-storage/async-storage/jest/async-storage-mock',
   },
 
   testMatch: ['<rootDir>/src/**/*.test.{ts,tsx}', '<rootDir>/test/**/*.test.{ts,tsx}'],
