@@ -68,6 +68,9 @@ export function FilesScreen() {
   const [previewing, setPreviewing] = useState<FileEntry | null>(null)
   const [sheeting, setSheeting] = useState<FileEntry | null>(null)
   const [newFolder, setNewFolder] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
+  const [searching, setSearching] = useState(false)
+  const [query, setQuery] = useState('')
 
   const load = useCallback(
     async (next: string) => {
@@ -110,6 +113,14 @@ export function FilesScreen() {
     )
   }, [entries, sort])
 
+  // Filtered after sorting rather than before, so the order does not change as
+  // someone types. Searching narrows what is shown; it does not re-rank it.
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    if (!needle) return sorted
+    return sorted.filter((entry) => entry.name.toLowerCase().includes(needle))
+  }, [sorted, query])
+
   const segments = path.split('/').filter(Boolean)
 
   return (
@@ -147,10 +158,64 @@ export function FilesScreen() {
 
         <View style={styles.spacer} />
 
+        {/* Contextual search, per the spec's "a search icon sits in the header
+            of both Photos and Files". Tapping it reveals the field rather than
+            keeping a permanent box, which on a phone is a row of chrome spent
+            on something used occasionally. */}
+        <Pressable
+          onPress={() => {
+            setSearching((on) => !on)
+            setQuery('')
+          }}
+          hitSlop={8}
+          accessibilityLabel="Search this folder"
+        >
+          <Icon
+            name={searching ? 'close' : 'search'}
+            size={20}
+            color={theme.color['icon-primary']}
+          />
+        </Pressable>
+
+        <Pressable
+          onPress={() => setViewMode((mode) => (mode === 'list' ? 'grid' : 'list'))}
+          hitSlop={8}
+          accessibilityLabel={viewMode === 'list' ? 'Grid view' : 'List view'}
+        >
+          <Icon name="grid" size={20} color={theme.color['icon-primary']} />
+        </Pressable>
+
         <Pressable onPress={() => setNewFolder('')} hitSlop={8} accessibilityLabel="New folder">
           <Icon name="add" size={20} color={theme.color['icon-primary']} />
         </Pressable>
       </View>
+
+      {searching && (
+        <View style={[styles.newFolder, { paddingHorizontal: theme.spacing['spacing-04'] }]}>
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Filter this folder"
+            placeholderTextColor={theme.color['text-placeholder']}
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={[
+              theme.text['text-body-compact-01'],
+              styles.grow,
+              {
+                color: theme.color['text-primary'],
+                backgroundColor: theme.color['field-01'],
+                borderBottomColor: theme.color['border-interactive'],
+                borderBottomWidth: 2,
+                borderRadius: theme.radius.small,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+              },
+            ]}
+          />
+        </View>
+      )}
 
       <View style={[styles.sorts, { paddingHorizontal: theme.spacing['spacing-04'] }]}>
         {SORTS.map((option) => {
@@ -228,46 +293,90 @@ export function FilesScreen() {
         </View>
       ) : (
         <FlatList
-          data={sorted}
+          // `key` is required because `numColumns` cannot change on a mounted
+          // list — React Native throws rather than re-laying out. Remounting is
+          // the documented answer, and it is cheap here.
+          key={viewMode}
+          data={shown}
+          numColumns={viewMode === 'grid' ? 3 : 1}
           keyExtractor={(entry) => entry.path}
-          renderItem={({ item }) => (
-            <Pressable
-              // 44pt minimum target, per the spec's accessibility line — the
-              // padding does the work rather than a fixed height, so a longer
-              // filename wraps instead of clipping.
-              style={[styles.row, { paddingHorizontal: theme.spacing['spacing-04'] }]}
-              onPress={() => (item.isFolder ? void load(item.path) : setPreviewing(item))}
-              onLongPress={() => setSheeting(item)}
-              delayLongPress={250}
-            >
-              <Icon
-                name={iconFor(item)}
-                size={20}
-                color={item.isFolder ? theme.color['icon-primary'] : theme.color['icon-secondary']}
-              />
-              <View style={styles.grow}>
+          renderItem={({ item }) =>
+            viewMode === 'grid' ? (
+              <Pressable
+                style={styles.tile}
+                onPress={() => (item.isFolder ? void load(item.path) : setPreviewing(item))}
+                onLongPress={() => setSheeting(item)}
+                delayLongPress={250}
+              >
+                <Icon
+                  name={iconFor(item)}
+                  size={32}
+                  color={item.isFolder ? theme.color['icon-primary'] : theme.color['icon-secondary']}
+                />
                 <Text
-                  numberOfLines={1}
-                  style={[theme.text['text-body-compact-01'], { color: theme.color['text-primary'] }]}
+                  numberOfLines={2}
+                  style={[
+                    theme.text['text-helper-text-01'],
+                    { color: theme.color['text-primary'], textAlign: 'center' },
+                  ]}
                 >
                   {item.name}
                 </Text>
-                <Text
-                  style={[theme.text['text-helper-text-01'], { color: theme.color['text-secondary'] }]}
-                >
-                  {item.sizeLabel ? `${item.sizeLabel} · ` : ''}
-                  {item.modifiedLabel}
-                </Text>
-              </View>
-            </Pressable>
-          )}
-          ItemSeparatorComponent={() => (
-            <View style={{ height: 1, backgroundColor: theme.color['border-subtle-00'] }} />
-          )}
+              </Pressable>
+            ) : (
+              <Pressable
+                // 44pt minimum target, per the spec's accessibility line — the
+                // padding does the work rather than a fixed height, so a longer
+                // filename wraps instead of clipping.
+                style={[styles.row, { paddingHorizontal: theme.spacing['spacing-04'] }]}
+                onPress={() => (item.isFolder ? void load(item.path) : setPreviewing(item))}
+                onLongPress={() => setSheeting(item)}
+                delayLongPress={250}
+              >
+                <Icon
+                  name={iconFor(item)}
+                  size={20}
+                  color={item.isFolder ? theme.color['icon-primary'] : theme.color['icon-secondary']}
+                />
+                <View style={styles.grow}>
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      theme.text['text-body-compact-01'],
+                      { color: theme.color['text-primary'] },
+                    ]}
+                  >
+                    {item.name}
+                  </Text>
+                  <Text
+                    style={[
+                      theme.text['text-helper-text-01'],
+                      { color: theme.color['text-secondary'] },
+                    ]}
+                  >
+                    {item.sizeLabel ? `${item.sizeLabel} · ` : ''}
+                    {item.modifiedLabel}
+                  </Text>
+                </View>
+              </Pressable>
+            )
+          }
+          ItemSeparatorComponent={
+            viewMode === 'list'
+              ? () => <View style={{ height: 1, backgroundColor: theme.color['border-subtle-00'] }} />
+              : undefined
+          }
           ListEmptyComponent={
             <View style={styles.centred}>
-              <Text style={[theme.text['text-body-01'], { color: theme.color['text-secondary'] }]}>
-                This folder is empty.
+              <Text
+                style={[
+                  theme.text['text-body-01'],
+                  { color: theme.color['text-secondary'], textAlign: 'center' },
+                ]}
+              >
+                {query.trim()
+                  ? `Nothing in this folder matches “${query.trim()}”.`
+                  : 'This folder is empty.'}
               </Text>
             </View>
           }
@@ -299,5 +408,13 @@ const styles = StyleSheet.create({
   sorts: { flexDirection: 'row', gap: 16, paddingVertical: 8 },
   newFolder: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, minHeight: 44 },
+  tile: {
+    flex: 1,
+    minHeight: 96,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 8,
+    padding: 8,
+  },
   grow: { flex: 1 },
 })

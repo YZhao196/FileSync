@@ -76,16 +76,16 @@ the same reason the desktop denies it.
 | Multi-select | Long-press to start; share, add to album, favourite, delete |
 | Albums | List and contents, behind a Timeline/Albums control in the Photos tab; same viewer and selection as the timeline |
 | Thumbnail cache | On disk, `file://` URIs, disposable; reported and clearable in Settings |
-| Files | Browser with a breadcrumb, folders first, sort by name/date/size, new folder |
+| Files | Browser with a breadcrumb, folders first, sort by name/date/size, filter this folder, list or grid, new folder |
 | File preview | Images, text and code inline; anything else offers Download |
 | File actions | Long-press for Download, Rename, Delete, Info |
 | Settings | Server, Account, Storage & cache, Appearance, About; Disconnect |
 
 ## What does not
 
-Grid view and search-within-files for the Files tab; pinch-to-zoom and
-swipe-to-dismiss in the viewer. These are **absent rather than stubbed** — a
-control that does nothing teaches the reader to distrust the ones that work.
+Pinch-to-zoom and swipe-to-dismiss in the viewer. These are **absent rather
+than stubbed** — a control that does nothing teaches the reader to distrust the
+ones that work.
 
 Four things are missing by decision rather than by omission, and each is
 recorded where the code is:
