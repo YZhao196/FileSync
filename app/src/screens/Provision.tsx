@@ -301,7 +301,6 @@ export function Provision() {
               lines={[
                 'Open Immich once and create the admin account — it has no users yet, so the first one you make is the admin.',
                 'Open Nextcloud once and create its admin account.',
-                'Deploy the host agent so this app can show real status (filesynapsetodo.md §2).',
                 'Point your phone at Immich and let it upload.',
               ]}
             />
@@ -374,7 +373,7 @@ export function Provision() {
               value={credentials.agentToken}
               onChange={(v) => setCredentials({ ...credentials, agentToken: v })}
               secret
-              hint="The AGENT_TOKEN you set when deploying the agent. Without it the status panel stays empty."
+              hint="Provisioning deployed the agent and generated this for you. Read it from the server: sudo cat /opt/filesynapse/agent/.env. Without it the status panel stays empty."
             />
 
             <Actions>

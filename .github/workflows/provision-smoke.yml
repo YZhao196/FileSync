@@ -62,7 +62,26 @@ jobs:
             PHOTOS_DIR=/srv/photos \
             FILES_DIR=/srv/cloud \
             TAILSCALE_NAME=filesynapse \
+            AGENT_DIR="$PWD/infra/agent" \
             bash infra/provision/provision.sh
+
+      # The app writes the agent into a temp directory and passes its path; this
+      # passes the repository copy instead, so the deploy path is exercised
+      # rather than the "no agent files were supplied" skip.
+      - name: The host agent is deployed and answering
+        run: |
+          sudo test -s /opt/filesynapse/agent/.env \
+            || { echo "::error::no agent .env was written"; exit 1; }
+          sudo grep -q '^AGENT_TOKEN=' /opt/filesynapse/agent/.env \
+            || { echo "::error::the agent token is missing"; exit 1; }
+          sudo grep -q '^HOST_PHOTOS_DIR=' /opt/filesynapse/agent/.env \
+            || { echo "::error::the host library paths were not set"; exit 1; }
+
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:8787/health && break
+            sleep 5
+          done | grep -q '"ok":true' \
+            || { echo "::error::the host agent never answered on 8787"; exit 1; }
 
       # Each assertion is a separate step so a failure names itself rather than
       # stopping at the first line of one big script.

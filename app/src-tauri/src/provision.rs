@@ -63,6 +63,34 @@ pub struct ProvisionState(pub Arc<Mutex<ProvisionRun>>);
 
 const SCRIPT: &str = include_str!("../../../infra/provision/provision.sh");
 
+/// The host agent, embedded so provisioning can deploy it without a terminal.
+///
+/// `provision.sh` cannot carry these itself. Its step bodies are double-quoted
+/// shell strings, where a backtick is command substitution that *runs* — which
+/// is why the file forbids them outright, and `agent.mjs` contains twenty-three.
+/// Escaping them all would be a losing game against the next edit. Embedding
+/// here means the real files go to the server with nothing between them and it.
+///
+/// `infra/agent/layla/` is deliberately absent: it is the optional decision
+/// model, behind a compose profile, and compose does not build it unless asked.
+/// The test scripts are absent too — the Dockerfile copies `*.mjs`, so leaving
+/// them out is also what keeps them out of the image.
+const AGENT_FILES: &[(&str, &str)] = &[
+    ("Dockerfile", include_str!("../../../infra/agent/Dockerfile")),
+    (
+        "docker-compose.yml",
+        include_str!("../../../infra/agent/docker-compose.yml"),
+    ),
+    (".dockerignore", include_str!("../../../infra/agent/.dockerignore")),
+    ("agent.mjs", include_str!("../../../infra/agent/agent.mjs")),
+    (
+        "captionStore.mjs",
+        include_str!("../../../infra/agent/captionStore.mjs"),
+    ),
+    ("containers.mjs", include_str!("../../../infra/agent/containers.mjs")),
+    ("decisions.mjs", include_str!("../../../infra/agent/decisions.mjs")),
+];
+
 /// Parses one line of the script's output. Unknown lines are dropped rather
 /// than shown: the script writes its own diagnostics to stderr.
 fn parse_line(line: &str) -> Option<ProvisionEvent> {
@@ -122,14 +150,40 @@ pub fn start_provision(
             let script_path = std::env::temp_dir().join("filesynapse-provision.sh");
             std::fs::write(&script_path, SCRIPT).map_err(|e| format!("could not write script: {e}"))?;
 
+            // The agent, written beside the script so the server can build it.
+            // Without this the script has nothing to deploy and the status
+            // panel — the desktop app's main screen — has nothing to talk to.
+            let agent_dir = std::env::temp_dir().join("filesynapse-agent");
+            std::fs::create_dir_all(&agent_dir)
+                .map_err(|e| format!("could not create the agent directory: {e}"))?;
+            for (name, contents) in AGENT_FILES {
+                std::fs::write(agent_dir.join(name), contents)
+                    .map_err(|e| format!("could not write {name}: {e}"))?;
+            }
+
             // Secrets reach the script as environment variables and are never
             // given to `echo` or written by this side. The script itself writes
             // the Backblaze and restic values to a root-owned 0600 file on the
             // server, which is where they belong.
+            //
+            // `-E` is not decoration. sudo's `env_reset` is on by default, and
+            // it rebuilds the environment from scratch — TERM, PATH, HOME, MAIL,
+            // SHELL, LOGNAME, USER and SUDO_* — so *every* variable set below
+            // was being discarded before the script ever saw it. That meant
+            // empty Backblaze credentials, so the script skipped the entire
+            // backup block while reporting success, and an empty TRANSFER, so
+            // the replace-server routes did nothing. Nothing would have said so.
+            //
+            // The SETENV tag this needs is implied when the matched command is
+            // ALL, which is the ordinary entry for a user in the sudo group. A
+            // stricter sudoers makes sudo refuse outright rather than silently
+            // dropping the values, which is the failure worth having.
             let mut command = Command::new("sudo");
             command
+                .arg("-E")
                 .arg("bash")
                 .arg(&script_path)
+                .env("AGENT_DIR", &agent_dir)
                 .env("PHOTOS_DIR", &config.photos_folder)
                 .env("FILES_DIR", &config.files_folder)
                 .env("TAILSCALE_NAME", &config.tailscale_name)

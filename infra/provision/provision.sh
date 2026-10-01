@@ -392,6 +392,67 @@ else
   skip "Trust the tailnet names" "no Nextcloud container is running"
 fi
 
+# ── The host agent ───────────────────────────────────────────────────────
+#
+# The desktop app's main screen is this agent's status panel, and deploying it
+# used to be three commands typed into a terminal after provisioning finished —
+# which is the thing the whole feature exists to avoid. PLAN.md §11: "Nobody
+# sees a terminal."
+#
+# The files come from the app, which embeds them — see AGENT_FILES in
+# provision.rs. They are not carried in this script because they are JavaScript
+# full of backticks, and this file forbids backticks outright for the reason
+# given at the top: in a double-quoted step body they are command substitution,
+# and they run.
+if [[ -n "${AGENT_DIR:-}" && -d "${AGENT_DIR:-}" ]]; then
+  step "Deploy the host agent" run "
+    mkdir -p '$STACK_DIR/agent'
+    # The trailing /. brings dotfiles; a bare glob would skip .dockerignore,
+    # which is the file that keeps .env out of the image's build context.
+    cp -a '$AGENT_DIR'/. '$STACK_DIR/agent/'
+
+    # Generated once and kept. Regenerating it on every run would invalidate the
+    # token the app already holds, and the symptom is a status panel that stops
+    # working after a re-provision — with nothing saying why.
+    if ! grep -qs '^AGENT_TOKEN=' '$STACK_DIR/agent/.env'; then
+      printf 'AGENT_TOKEN=%s\n' \"\$(openssl rand -hex 32)\" > '$STACK_DIR/agent/.env'
+    fi
+
+    # The host side of the library mounts. Without these the agent mounts /srv,
+    # measures a directory nothing writes to, and reports disk usage for the
+    # wrong disk — a plausible number rather than an error.
+    if ! grep -qs '^HOST_PHOTOS_DIR=' '$STACK_DIR/agent/.env'; then
+      printf 'HOST_PHOTOS_DIR=%s\n' '$PHOTOS_DIR' >> '$STACK_DIR/agent/.env'
+    fi
+    if ! grep -qs '^HOST_CLOUD_DIR=' '$STACK_DIR/agent/.env'; then
+      printf 'HOST_CLOUD_DIR=%s\n' '$FILES_DIR' >> '$STACK_DIR/agent/.env'
+    fi
+
+    # restic's own credentials, which the agent needs to report snapshot state
+    # rather than saying \"unknown\". Written with if-statements rather than
+    # shorthand: under set -e a bare test that fails takes the whole step with
+    # it, which is exactly the bug the run helper exists to stop.
+    if [ -n '$B2_KEY_ID' ]; then
+      sed -i '/^B2_ACCOUNT_ID=/d' '$STACK_DIR/agent/.env'
+      printf 'B2_ACCOUNT_ID=%s\n' '$B2_KEY_ID' >> '$STACK_DIR/agent/.env'
+    fi
+    if [ -n '$B2_APP_KEY' ]; then
+      sed -i '/^B2_ACCOUNT_KEY=/d' '$STACK_DIR/agent/.env'
+      printf 'B2_ACCOUNT_KEY=%s\n' '$B2_APP_KEY' >> '$STACK_DIR/agent/.env'
+    fi
+    if [ -n '$RESTIC_PASSWORD' ]; then
+      sed -i '/^RESTIC_PASSWORD=/d' '$STACK_DIR/agent/.env'
+      printf 'RESTIC_PASSWORD=%s\n' '$RESTIC_PASSWORD' >> '$STACK_DIR/agent/.env'
+    fi
+
+    chmod 600 '$STACK_DIR/agent/.env'
+    cd '$STACK_DIR/agent' && docker compose up -d --build
+  "
+  log "The agent's token is in $STACK_DIR/agent/.env — it is the one the app asks for."
+else
+  skip "Deploy the host agent" "no agent files were supplied — see infra/agent/README.md"
+fi
+
 # ── Backup ───────────────────────────────────────────────────────────────
 #
 # restic to Backblaze B2, nightly, with a systemd timer. The timer writes a
