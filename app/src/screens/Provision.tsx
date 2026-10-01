@@ -292,11 +292,41 @@ export function Provision() {
 
             <StepList
               lines={[
-                'Open Immich once and create the admin account — it has no users yet.',
-                'Open Nextcloud once and create the admin account.',
+                'Open Immich once and create the admin account — it has no users yet, so the first one you make is the admin.',
+                'Open Nextcloud once and create its admin account.',
                 'Deploy the host agent so this app can show real status (filesynapsetodo.md §2).',
                 'Point your phone at Immich and let it upload.',
               ]}
+            />
+
+            {/*
+              All three credentials on one screen, in the order they are
+              created. Previously only the agent token was here, so setting the
+              address and landing on the server screen gave a status panel that
+              could not work — the Immich key and the Nextcloud password had to
+              be found and entered somewhere else, with nothing saying so.
+            */}
+            <CredField
+              label="Immich API key"
+              value={credentials.immichApiKey}
+              onChange={(v) => setCredentials({ ...credentials, immichApiKey: v })}
+              secret
+              hint="Immich: Account Settings → API Keys. It needs the all permission — a narrower key is refused by the metadata routes the photo screens use."
+            />
+
+            <CredField
+              label="Nextcloud username"
+              value={credentials.nextcloudUser}
+              onChange={(v) => setCredentials({ ...credentials, nextcloudUser: v })}
+              hint="The admin account you just created in Nextcloud."
+            />
+
+            <CredField
+              label="Nextcloud app password"
+              value={credentials.nextcloudAppPassword}
+              onChange={(v) => setCredentials({ ...credentials, nextcloudAppPassword: v })}
+              secret
+              hint="Nextcloud: Personal settings → Security → Create new app password. This is not your login password."
             />
 
             <CredField
