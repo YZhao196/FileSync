@@ -371,6 +371,22 @@ if docker ps --format '{{.Names}}' | grep -qx nextcloud; then
         trusted_domains \"\$index\" --value=\"\$name\" >/dev/null
       index=\$((index + 1))
     done
+
+    # Nextcloud builds absolute URLs from these, and without them it uses
+    # whatever host the request arrived on. That is fine when the two agree and
+    # wrong the moment they do not: the app hands uploads off to Nextcloud's own
+    # web UI, and any link Nextcloud generates there would carry a host the
+    # other devices cannot resolve.
+    #
+    # The real name, not the join name — under the replace flow the machine
+    # joins temporarily and takes the real name at handover, and these should
+    # already describe where it is going to live.
+    docker exec -u www-data nextcloud php occ config:system:set \
+      overwritehost --value='$TAILSCALE_NAME' >/dev/null
+    docker exec -u www-data nextcloud php occ config:system:set \
+      overwriteprotocol --value='http' >/dev/null
+    docker exec -u www-data nextcloud php occ config:system:set \
+      overwrite.cli.url --value='http://$TAILSCALE_NAME:8080' >/dev/null
   "
 else
   skip "Trust the tailnet names" "no Nextcloud container is running"
