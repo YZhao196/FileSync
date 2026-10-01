@@ -288,7 +288,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setFileFolder: (fileFolder) => patch({ fileFolder }),
       setDecisionPipeline: (decisionPipeline) => patch({ decisionPipeline }),
       resetConnection: () => {
+        // The credentials go too, and that is the point rather than a bonus.
+        //
+        // This is what Settings' Disconnect calls, and it used to clear the
+        // address and nothing else — leaving the Immich API key and the
+        // Nextcloud app password in the OS keychain under a button that then
+        // reported "Disconnected". On a machine somebody else uses, the next
+        // person opens the app, sees First Run, types an address, and is
+        // immediately holding working credentials for a server that is not
+        // theirs.
+        //
+        // An empty value is what deletes a keychain entry — `saveCredentials`
+        // passes `null` for a blank field and `store_credential` treats that as
+        // removal — so this is the whole of the fix. The mobile client's
+        // `disconnect()` already did both; the two now agree.
         patch({ connection: DEFAULTS.connection })
+        setCredentials(EMPTY_CREDENTIALS)
         setConnectionState('unconfigured')
         setNav({})
         setScreen('first-run')
