@@ -19,7 +19,7 @@
 # passed through for the operator.
 #
 # UNVERIFIED: written against Debian 12/Ubuntu 22.04 without a machine to run it
-# on. See for-human.md. Treat the first run as a test, on a machine you can
+# on. See filesynapsetodo.md. Treat the first run as a test, on a machine you can
 # rebuild.
 
 set -euo pipefail
@@ -55,6 +55,19 @@ step() {
 
 skip() { emit "$1" skipped "$2"; }
 
+# A multi-command step body, run fail-fast.
+#
+# `step` runs its body in a child shell, and a child does **not** inherit
+# `set -e` or `set -u` from this script. A body of several commands therefore
+# reported success as long as its *last* command succeeded, so a failed write in
+# the middle was invisible: the step went green and the run ended with a success
+# summary. That is the worst way to lose data — the nightly backup job is
+# written by such a body.
+#
+# Every body of more than one command goes through here. A bare single command
+# (`mkdir -p …`) needs no wrapper.
+run() { bash -euo pipefail -c "$1"; }
+
 log() { echo "[provision] $*" >&2; }
 
 # ── Preflight ────────────────────────────────────────────────────────────
@@ -83,14 +96,17 @@ emit "preflight" ok "$( . /etc/os-release && echo "${PRETTY_NAME:-Linux}" )"
 
 # ── Packages ─────────────────────────────────────────────────────────────
 
-step "Update package lists" bash -c 'apt-get update -qq'
+step "Update package lists" run 'apt-get update -qq'
 
 if command -v docker >/dev/null 2>&1; then
   skip "Install Docker" "already present"
 else
-  step "Install Docker" bash -c '
+  step "Install Docker" run '
     apt-get install -y -qq ca-certificates curl gnupg
-    install -m 0755 -d /etc/apt/keyrings
+    # Both directories are created rather than assumed. Stock Debian ships
+    # sources.list.d, but a stripped or container-derived image may not, and this
+    # script has no business depending on a directory it writes into.
+    install -m 0755 -d /etc/apt/keyrings /etc/apt/sources.list.d
     curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
     chmod a+r /etc/apt/keyrings/docker.asc
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
@@ -102,7 +118,7 @@ https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_C
   '
 fi
 
-step "Install utilities" bash -c 'apt-get install -y -qq curl jq openssl'
+step "Install utilities" run 'apt-get install -y -qq curl jq openssl'
 
 # ── Storage folders ──────────────────────────────────────────────────────
 #
@@ -148,7 +164,7 @@ IMMICH_DB_PASSWORD="$(openssl rand -hex 24)"
 # share.
 IMMICH_DB_DIR="${IMMICH_DB_DIR:-$IMMICH_DIR/postgres}"
 
-step "Fetch Immich's compose" bash -c "
+step "Fetch Immich's compose" run "
   mkdir -p '$IMMICH_DIR'
   # Fetched to a temporary name and moved, so a half-downloaded file is never
   # left where compose would read it.
@@ -156,7 +172,7 @@ step "Fetch Immich's compose" bash -c "
   mv '$IMMICH_DIR/docker-compose.yml.new' '$IMMICH_DIR/docker-compose.yml'
 "
 
-step "Configure Immich" bash -c "
+step "Configure Immich" run "
   mkdir -p '$IMMICH_DB_DIR'
   cat > '$IMMICH_DIR/.env' <<ENV
 # Written by FileSynapse provisioning. Keys are Immich's own; values are this
@@ -171,7 +187,7 @@ ENV
   chmod 600 '$IMMICH_DIR/.env'
 "
 
-step "Write Nextcloud stack" bash -c "
+step "Write Nextcloud stack" run "
   mkdir -p '$NEXTCLOUD_DIR'
   cat > '$NEXTCLOUD_DIR/docker-compose.yml' <<'COMPOSE'
 name: nextcloud
@@ -269,10 +285,10 @@ ENV
 # Nextcloud writes as www-data, which is uid 33 in its image. This used to chown
 # to 1000:1000, which left the library unwritable and would have shown up as a
 # files browser that could not create anything. PLAN.md §7 records the same trap.
-step "Set files ownership" bash -c "chown -R 33:33 '$FILES_DIR'"
+step "Set files ownership" run "chown -R 33:33 '$FILES_DIR'"
 
-step "Start Immich" bash -c "cd '$IMMICH_DIR' && docker compose up -d"
-step "Start Nextcloud" bash -c "cd '$NEXTCLOUD_DIR' && docker compose up -d"
+step "Start Immich" run "cd '$IMMICH_DIR' && docker compose up -d"
+step "Start Nextcloud" run "cd '$NEXTCLOUD_DIR' && docker compose up -d"
 
 # ── Tailscale ────────────────────────────────────────────────────────────
 #
@@ -283,14 +299,14 @@ step "Start Nextcloud" bash -c "cd '$NEXTCLOUD_DIR' && docker compose up -d"
 if command -v tailscale >/dev/null 2>&1; then
   skip "Install Tailscale" "already present"
 else
-  step "Install Tailscale" bash -c 'curl -fsSL https://tailscale.com/install.sh | sh'
+  step "Install Tailscale" run 'curl -fsSL https://tailscale.com/install.sh | sh'
 fi
 
 JOIN_NAME="${TAILSCALE_TEMP_NAME:-$TAILSCALE_NAME}"
 if tailscale status >/dev/null 2>&1; then
   skip "Join the tailnet" "already joined"
 else
-  step "Join the tailnet" bash -c "tailscale up --hostname '$JOIN_NAME' --accept-routes"
+  step "Join the tailnet" run "tailscale up --hostname '$JOIN_NAME' --accept-routes"
 fi
 
 # ── Backup ───────────────────────────────────────────────────────────────
@@ -300,9 +316,9 @@ fi
 # success from snapshot age.
 
 if [[ -n "$B2_BUCKET" && -n "$B2_KEY_ID" && -n "$B2_APP_KEY" && -n "$RESTIC_PASSWORD" ]]; then
-  step "Install restic" bash -c 'apt-get install -y -qq restic'
+  step "Install restic" run 'apt-get install -y -qq restic'
 
-  step "Write backup job" bash -c "
+  step "Write backup job" run "
     mkdir -p /etc/filesynapse
     cat > /etc/filesynapse/backup.env <<ENV
 RESTIC_REPOSITORY=b2:$B2_BUCKET:/filesynapse
@@ -336,8 +352,11 @@ docker exec immich_postgres pg_dumpall --clean --if-exists -U postgres \\
 grep -q 'PostgreSQL database dump complete' \"\$DUMP_DIR/immich.sql\" || exit 1
 
 # Nextcloud's MariaDB. --single-transaction keeps it consistent while running.
+#
+# The stack directory is baked in here rather than hardcoded: it is configurable,
+# and a dump that cannot find its .env cannot get the database password.
 # shellcheck disable=SC1091
-. /opt/filesynapse/nextcloud/.env
+. \"$STACK_DIR/nextcloud/.env\"
 docker exec nextcloud-db mariadb-dump --all-databases --single-transaction --quick \\
   -uroot -p\"\$DB_PASSWORD\" > \"\$DUMP_DIR/nextcloud.sql\" || exit 1
 grep -q 'Dump completed' \"\$DUMP_DIR/nextcloud.sql\" || exit 1
@@ -369,12 +388,17 @@ if restic snapshots >/dev/null 2>&1 || restic init; then
   # password itself — which is circular but not a weakness, since reading this
   # repository already requires that password.
   #
+  # $STACK_DIR is expanded here, at generation time, rather than left for the
+  # script to resolve — this path used to be the literal /opt/filesynapse, which
+  # meant a custom STACK_DIR was silently left out of the backup while the run
+  # still reported ok.
+  #
   # The Postgres data directory is excluded on purpose. It is a running database's
   # files, and it is already covered properly by the logical dump above; copying
   # it would add gigabytes of torn state and could restore into a database that
   # will not start.
   if restic backup '$PHOTOS_DIR' '$FILES_DIR' /var/lib/filesynapse/dumps \\
-       /opt/filesynapse /etc/filesynapse \\
+       \"$STACK_DIR\" /etc/filesynapse \\
        --exclude-caches --exclude '$IMMICH_DB_DIR'; then
     # Retention, not just accumulation. PLAN.md §9 chose seven daily snapshots
     # deliberately; without this the repository grows for ever and the retention
@@ -421,7 +445,7 @@ fi
 # ── Transfer, when replacing another server ──────────────────────────────
 
 if [[ -n "${SOURCE_ADDRESS:-}" && "${TRANSFER:-fresh}" != "fresh" ]]; then
-  step "Install transfer tools" bash -c 'apt-get install -y -qq rsync openssh-client'
+  step "Install transfer tools" run 'apt-get install -y -qq rsync openssh-client'
 
   if [[ "${TRANSFER}" == "sync" ]]; then
     # Access first, as a step of its own.
@@ -431,7 +455,7 @@ if [[ -n "${SOURCE_ADDRESS:-}" && "${TRANSFER:-fresh}" != "fresh" ]]; then
     # password prompt nobody is watching, which the app can only report as "Sync
     # from the old server: failed". That names the symptom. This names the cause,
     # before an hour of copying has been attempted.
-    step "Check access to the old server" bash -c "
+    step "Check access to the old server" run "
       ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 \\
           'root@${SOURCE_ADDRESS}' true
     "
@@ -439,12 +463,12 @@ if [[ -n "${SOURCE_ADDRESS:-}" && "${TRANSFER:-fresh}" != "fresh" ]]; then
     # Copy the current state exactly. The old server must stay up until this
     # finishes and is verified — that is why it is a step and not a background
     # job nobody watches.
-    step "Sync from the old server" bash -c "
+    step "Sync from the old server" run "
       rsync -aH --info=progress2 'root@${SOURCE_ADDRESS}:${PHOTOS_DIR}/' '$PHOTOS_DIR/' &&
       rsync -aH --info=progress2 'root@${SOURCE_ADDRESS}:${FILES_DIR}/' '$FILES_DIR/'
     "
   elif [[ "${TRANSFER}" == "restore" ]]; then
-    step "Restore the latest snapshot" bash -c "
+    step "Restore the latest snapshot" run "
       . /etc/filesynapse/backup.env
       restic restore latest --target /
     "
