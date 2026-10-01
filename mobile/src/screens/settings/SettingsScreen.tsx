@@ -18,7 +18,8 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 
-import { cacheBytes, clearCache } from '../../platform/cache'
+import { clearDownloads, downloadsBytes } from '../../platform/cache'
+import { clearThumbs, thumbStats } from '../../platform/thumbStore'
 import { usePreferences } from '../../state/preferences'
 import { useSession } from '../../state/session'
 import type { ThemePreference } from '../../theme/ThemeProvider'
@@ -35,11 +36,18 @@ export function SettingsScreen() {
   const { connection, credentials, disconnect } = useSession()
   const { theme: preference, setTheme } = usePreferences()
 
-  const [bytes, setBytes] = useState<number | null | 'loading'>('loading')
+  const [thumbs, setThumbs] = useState<{ count: number; bytes: number } | null>(null)
+  const [downloads, setDownloads] = useState<number | null>(null)
+  const [measuring, setMeasuring] = useState(true)
 
   const measure = useCallback(() => {
-    setBytes('loading')
-    void cacheBytes().then(setBytes)
+    setMeasuring(true)
+    void Promise.all([thumbStats(), downloadsBytes()])
+      .then(([thumbResult, downloadBytes]) => {
+        setThumbs(thumbResult)
+        setDownloads(downloadBytes)
+      })
+      .finally(() => setMeasuring(false))
   }, [])
 
   useEffect(measure, [measure])
@@ -56,12 +64,26 @@ export function SettingsScreen() {
   }
 
   function confirmClearCache() {
-    Alert.alert('Clear the cache?', 'Thumbnails and downloads are removed. Nothing is lost — they re-download.', [
+    // Two separate buttons rather than one. Thumbnails are derived and cost
+    // only a re-download; downloads are files the user asked to keep, and
+    // emptying those under the same button would be a small betrayal.
+    Alert.alert('Clear the thumbnail cache?', 'Nothing is lost — they download again as you scroll.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Clear',
         style: 'destructive',
-        onPress: () => void clearCache().then(measure),
+        onPress: () => void clearThumbs().then(measure),
+      },
+    ])
+  }
+
+  function confirmClearDownloads() {
+    Alert.alert('Remove downloaded files?', 'Files you downloaded to this device are deleted. They stay on the server.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => void clearDownloads().then(measure),
       },
     ])
   }
@@ -89,13 +111,11 @@ export function SettingsScreen() {
 
       <Section title="Storage & cache">
         <Row
-          label="Cache"
+          label="Thumbnails"
           value={
-            bytes === 'loading'
+            measuring || !thumbs
               ? 'Measuring…'
-              : bytes === null
-                ? 'Unavailable'
-                : formatBytes(bytes)
+              : `${thumbs.count} · ${formatBytes(thumbs.bytes)}`
           }
         />
         <Pressable
@@ -103,7 +123,19 @@ export function SettingsScreen() {
           style={[styles.action, { paddingHorizontal: theme.spacing['spacing-04'] }]}
         >
           <Text style={[theme.text['text-body-compact-01'], { color: theme.color['link-primary'] }]}>
-            Clear cache
+            Clear thumbnail cache
+          </Text>
+        </Pressable>
+        <Row
+          label="Downloads"
+          value={measuring ? 'Measuring…' : downloads === null ? 'Unavailable' : formatBytes(downloads)}
+        />
+        <Pressable
+          onPress={confirmClearDownloads}
+          style={[styles.action, { paddingHorizontal: theme.spacing['spacing-04'] }]}
+        >
+          <Text style={[theme.text['text-body-compact-01'], { color: theme.color['link-primary'] }]}>
+            Clear downloads
           </Text>
         </Pressable>
       </Section>

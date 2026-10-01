@@ -37,7 +37,6 @@ import {
   type LayoutChangeEvent,
 } from 'react-native'
 
-import { GradientTile } from '../../components/GradientTile'
 import { Icon } from '../../components/Icon'
 import { Toast } from '../../components/Toast'
 import type { Photo, PhotoId } from '../../core/types'
@@ -48,6 +47,7 @@ import { AlbumPicker } from './AlbumPicker'
 import { FilterChips } from './FilterChips'
 import { PhotoViewer } from './PhotoViewer'
 import { SelectionBar } from './SelectionBar'
+import { PhotoTile } from './PhotoTile'
 import { COLUMNS, chunkRows } from './rows'
 import { usePhotoActions } from './usePhotoActions'
 
@@ -200,28 +200,9 @@ export function PhotosTimeline() {
                   setSelection((current) => new Set(current).add(photo.id))
                 }
                 delayLongPress={250}
-                style={{
-                  width: tile,
-                  height: tile,
-                  borderRadius: theme.radius.small,
-                  borderWidth: selection.has(photo.id) ? 3 : 0,
-                  borderColor: theme.color['border-interactive'],
-                }}
+                style={{ width: tile, height: tile }}
               >
-                <GradientTile
-                  gradient={photo.gradient}
-                  style={{ flex: 1, borderRadius: theme.radius.small }}
-                >
-                  <View style={styles.tileOverlay} pointerEvents="none">
-                    {photo.isVideo && <Icon name="play" size={20} color="#ffffff" />}
-                    {photo.isFavourite && (
-                      <Icon name="star" variant="filled" size={16} color="#ffffff" />
-                    )}
-                    {selection.has(photo.id) && (
-                      <Icon name="check" variant="filled" size={16} color="#ffffff" />
-                    )}
-                  </View>
-                </GradientTile>
+                <PhotoTile photo={photo} size={tile} selected={selection.has(photo.id)} />
               </Pressable>
             ))}
             {/* Keeps a short final row at tile width instead of stretching it. */}

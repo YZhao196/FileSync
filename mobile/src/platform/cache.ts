@@ -1,33 +1,44 @@
 /**
- * The app's cache directory — UI-MOBILE.md §4's "Storage & cache".
+ * Downloads, and the app's cache directory — UI-MOBILE.md §4.
  *
- * The spec's framing is exact and worth repeating: thumbnails "accumulate on
- * demand and are **disposable** — clearing them costs nothing but a
- * re-download". So this reports a number and empties a directory, and nothing
- * depends on the contents surviving.
+ * The spec names two things separately and so does this: the **thumbnail
+ * cache**, which `thumbStore.ts` owns and which is disposable by design, and
+ * **downloaded files**, which are things the user asked to keep. Clearing one
+ * must not clear the other, which is why the thumbnail folder is excluded here
+ * rather than the whole directory being reported as one number.
  *
- * Today the directory holds downloaded files from the viewer and the file
- * browser. It does *not* yet hold thumbnails, because there is no thumbnail
- * cache — `usePhotoUri` refetches every mount. So the number here is honest but
- * small, and will become the number the spec means once that lands.
+ * The spec's framing for thumbnails is exact: they "accumulate on demand and
+ * are **disposable** — clearing them costs nothing but a re-download".
+ * Downloads are not that. A person who downloaded a document and then cleared
+ * the cache would be surprised to find it gone, which is the reason for the
+ * second button.
  *
- * Everything is wrapped rather than assumed: the filesystem API is new, its
- * shapes are still settling, and a settings screen that throws because it could
- * not measure a directory would take the whole tab down with it.
+ * Everything is wrapped rather than assumed: a settings screen that throws
+ * because it could not measure a directory would take the whole tab down.
  */
 
-import { Directory, Paths } from 'expo-file-system'
+import { Directory, File, Paths } from 'expo-file-system'
 
-/** Bytes in the cache directory, or null if it could not be measured. */
-export async function cacheBytes(): Promise<number | null> {
+/** Must match `FOLDER` in `thumbStore.ts` — these are the files not counted here. */
+const THUMBS = 'thumbs'
+
+/** Everything in the cache directory except the thumbnails. */
+function downloads(): File[] {
   try {
-    const entries = new Directory(Paths.cache).list()
+    return new Directory(Paths.cache)
+      .list()
+      .filter((entry): entry is File => entry instanceof File && entry.name !== THUMBS)
+  } catch {
+    return []
+  }
+}
+
+/** Bytes of downloaded files, or null if the directory could not be read. */
+export async function downloadsBytes(): Promise<number | null> {
+  try {
     let total = 0
-    for (const entry of entries) {
-      // `size` is on files, not directories. A nested directory's contents are
-      // not counted, which is a real undercount and the reason this is
-      // described as approximate rather than exact.
-      const size = (entry as { size?: number | null }).size
+    for (const file of downloads()) {
+      const size = (file as { size?: number | null }).size
       if (typeof size === 'number') total += size
     }
     return total
@@ -37,18 +48,15 @@ export async function cacheBytes(): Promise<number | null> {
 }
 
 /**
- * Empties the cache directory.
+ * Removes downloaded files, leaving the thumbnails alone.
  *
- * Deletes the contents rather than the directory itself: the directory is
- * managed by the platform, and removing it is a good way to find out that
- * something else writes there.
+ * The thumbnail directory is skipped by name rather than by type because
+ * `Directory.list()` returns both, and deleting it here would make "Clear
+ * downloads" silently empty the timeline's cache as well.
  */
-export async function clearCache(): Promise<boolean> {
+export async function clearDownloads(): Promise<boolean> {
   try {
-    const directory = new Directory(Paths.cache)
-    for (const entry of directory.list()) {
-      entry.delete()
-    }
+    for (const file of downloads()) file.delete()
     return true
   } catch {
     return false

@@ -14,16 +14,25 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import {
+  ActivityIndicator,
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from 'react-native'
 
-import { GradientTile } from '../../components/GradientTile'
 import { Icon } from '../../components/Icon'
 import { Toast } from '../../components/Toast'
 import type { Album, Photo } from '../../core/types'
 import { useSession } from '../../state/session'
 import { useTheme } from '../../theme/ThemeProvider'
+import { PhotoTile } from './PhotoTile'
 import { PhotoViewer } from './PhotoViewer'
-import { chunkRows } from './rows'
+import { COLUMNS, chunkRows } from './rows'
 import { usePhotoActions } from './usePhotoActions'
 
 const GAP = 2
@@ -36,6 +45,11 @@ export function AlbumDetail({ album, onBack }: { album: Album; onBack: () => voi
   const [photos, setPhotos] = useState<Photo[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
+
+  // Measured rather than taken from the window, for the reasons the timeline
+  // gives: the window is the wrong number in split view and on a tablet.
+  const [width, setWidth] = useState(() => Dimensions.get('window').width)
+  const tile = Math.max(1, Math.floor((width - GAP * 4) / COLUMNS))
 
   const load = useCallback(async () => {
     setError(null)
@@ -54,7 +68,10 @@ export function AlbumDetail({ album, onBack }: { album: Album; onBack: () => voi
   const rows = photos ? chunkRows(photos.map((photo, index) => ({ photo, index }))) : []
 
   return (
-    <View style={[styles.flex, { backgroundColor: theme.color.background }]}>
+    <View
+      style={[styles.flex, { backgroundColor: theme.color.background }]}
+      onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)}
+    >
       <View style={[styles.header, { paddingHorizontal: theme.spacing['spacing-04'] }]}>
         <Pressable onPress={onBack} hitSlop={12} accessibilityLabel="Back to albums">
           <Icon name="back" size={20} color={theme.color['icon-primary']} />
@@ -84,18 +101,9 @@ export function AlbumDetail({ album, onBack }: { album: Album; onBack: () => voi
                   key={photo.id}
                   testID="album-tile"
                   onPress={() => setViewerIndex(index)}
-                  style={{ width: '31%', aspectRatio: 1, borderRadius: theme.radius.small }}
+                  style={{ width: tile, height: tile }}
                 >
-                  <GradientTile
-                    gradient={photo.gradient}
-                    style={{ flex: 1, borderRadius: theme.radius.small }}
-                  >
-                    {photo.isVideo && (
-                      <View style={styles.badge}>
-                        <Icon name="play" size={16} color="#ffffff" />
-                      </View>
-                    )}
-                  </GradientTile>
+                  <PhotoTile photo={photo} size={tile} />
                 </Pressable>
               ))}
             </View>
