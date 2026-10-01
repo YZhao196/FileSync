@@ -1,0 +1,185 @@
+name: Release
+
+# Tag-driven, and nothing else. A download on the Releases page should always
+# correspond to a commit and a version, which is only true if the only way to
+# produce one is pushing a tag.
+#
+# This is separate from ci.yml on purpose. CI answers "is the tree good?" on
+# every push and is expected to be boring; this publishes binaries to the
+# internet, runs a three-OS matrix plus a Gradle build, and needs write
+# permission to do it. Folding the two together would mean either granting every
+# push those permissions or gating the tests on a tag.
+on:
+  push:
+    tags: ['v*']
+
+# Creating a release and attaching assets is a write to the repository, and the
+# workflow token does not have it by default. Stated here rather than left
+# implicit so the permission this file needs is visible in the file.
+permissions:
+  contents: write
+
+jobs:
+  # Runs first and gates everything else, so a mistyped tag fails in seconds
+  # instead of after three OS builds and a Gradle run.
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # The tag says one thing and the three files that carry the version say
+      # another, and the installer, the build and Settings → About each read a
+      # different one. Publishing under a tag the binary disagrees with is the
+      # version of that mistake that cannot be corrected — a downloaded file
+      # keeps its name forever.
+      - name: The tag matches the version in the tree
+        working-directory: app
+        run: |
+          node scripts/check-versions.mjs
+          want="v$(node -p "require('./package.json').version")"
+          if [ "$want" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match the version in the tree ($want)"
+            exit 1
+          fi
+          echo "$GITHUB_REF_NAME matches the version in the tree"
+
+      # Created here rather than by each build job. Three jobs racing to create
+      # the same release means two of them fail with a 422 and, depending on how
+      # the failure is handled, either lose their assets or lose the error.
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "FileSynapse $GITHUB_REF_NAME" \
+            --notes-file .github/release-notes.md
+
+  # Windows, Linux and macOS, because the three desktop clients are the same
+  # binary built three ways and a release that ships two of them is not a
+  # release. `bundle.targets` is "all", so one command per platform produces
+  # every format that platform has.
+  desktop:
+    needs: publish
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            assets: app/src-tauri/target/release/bundle/nsis/*.exe app/src-tauri/target/release/bundle/msi/*.msi
+          - os: ubuntu-latest
+            assets: app/src-tauri/target/release/bundle/deb/*.deb app/src-tauri/target/release/bundle/rpm/*.rpm app/src-tauri/target/release/bundle/appimage/*.AppImage
+          - os: macos-latest
+            assets: app/src-tauri/target/release/bundle/dmg/*.dmg
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      # Tauri links against the system webview and the keyring crate against
+      # libsecret. Without these the build fails at link time, which reads as a
+      # code error and is not one.
+      - name: Linux system dependencies
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: .
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            libsecret-1-dev
+
+      - run: npm ci
+
+      # A failing typecheck should stop the release before twenty minutes of
+      # Rust, not after it.
+      - run: npm run build
+
+      - name: Build the shell and its bundles
+        run: npx tauri build
+
+      # `shell: bash` because the globs in `matrix.assets` have to be expanded
+      # by something. PowerShell — the default on the Windows runner — passes
+      # them through literally, and `gh` then looks for a file called `*.msi`.
+      # Git Bash is present on every runner and expands them the way they read.
+      - name: Attach the installers to the release
+        working-directory: .
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" ${{ matrix.assets }} --clobber
+
+  # The one phone artefact that can be built without a Mac. It installs on a
+  # physical device over adb, so it belongs on the page with the rest rather
+  # than only in a workflow artefact nobody outside the repository can reach.
+  android:
+    needs: publish
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      # 22, not 20 — the Expo tree declares `node: ^22.13.0 || >=24` and `npm ci`
+      # warns EBADENGINE against 20 on every run.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # `packages` is set explicitly because the action's default includes the
+      # standalone `tools` package, which no longer exists in Google's
+      # repository — so the default fails before anything is compiled.
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - run: npm ci
+
+      # `--no-install` because npm already ran; prebuild only generates the
+      # native project, which CNG means is not committed.
+      - run: npx expo prebuild -p android --no-install
+
+      - name: Build the debug APK
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      # The Gradle output is `app-debug.apk`, which says nothing about what it
+      # is or which version, and the Releases page is exactly where that matters
+      # — it sits next to installers for three other platforms.
+      - name: Give the APK a name that identifies it
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk \
+              "android/app/build/outputs/apk/debug/filesynapse-${GITHUB_REF_NAME}-android.apk"
+
+      - name: Attach the APK to the release
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" mobile/android/app/build/outputs/apk/debug/filesynapse-*-android.apk --clobber
