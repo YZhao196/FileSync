@@ -26,7 +26,7 @@ import { ActivityIndicator, View } from 'react-native'
 import { Icon, type IconName } from '../components/Icon'
 import { FilesScreen } from '../screens/files/FilesScreen'
 import { FirstRunScreen } from '../screens/first-run/FirstRunScreen'
-import { PhotosTimeline } from '../screens/photos/PhotosTimeline'
+import { PhotosTab } from '../screens/photos/PhotosTab'
 import { SettingsScreen } from '../screens/settings/SettingsScreen'
 import { useSession } from '../state/session'
 import { useTheme } from '../theme/ThemeProvider'
@@ -122,7 +122,7 @@ function Tabs() {
           // Photos and Files are already the right components; Settings is
           // named rather than inlined so the tab list above stays data.
           component={
-            name === 'Photos' ? PhotosTimeline : name === 'Files' ? FilesScreen : SettingsScreen
+            name === 'Photos' ? PhotosTab : name === 'Files' ? FilesScreen : SettingsScreen
           }
         />
       ))}
