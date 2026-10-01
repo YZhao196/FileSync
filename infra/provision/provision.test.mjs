@@ -498,6 +498,100 @@ check(
   failsMidBody.result.stdout?.slice(-200),
 )
 
+/* ── verify.sh ──────────────────────────────────────────────────────────── */
+
+console.log('\nverify.sh — the thing somebody runs when the server is already wrong')
+
+/**
+ * Runs `verify.sh` against a described server and reports what it concluded.
+ *
+ * It is the tool a person reaches for when something is broken, and it had no
+ * automated test at all — its parsing was checked once by hand and never
+ * captured, which is the same mistake as the dry run being done by hand. The
+ * logic worth pinning is the trusted-domains comparison, because it is the one
+ * check nothing else in the project can make.
+ */
+function runVerify(root, shellRoot, { trusts = true, docker = true, reachable = true } = {}) {
+  const bin = join(root, `verify-bin-${trusts}-${docker}-${reachable}`)
+  mkdirSync(bin, { recursive: true })
+
+  const domains = trusts
+    ? '["filesynapse","filesynapse.tailnet.test","100.64.0.1"]'
+    : '["filesynapse"]'
+
+  if (docker) {
+    stub(
+      bin,
+      'docker',
+      `case "$1" in
+         ps) printf '%s\\n' immich_server immich_postgres nextcloud nextcloud-db agent ;;
+         exec) echo '{"system":{"trusted_domains":${domains},"overwritehost":"filesynapse"}}' ;;
+       esac
+       exit 0`,
+    )
+  }
+  stub(bin, 'curl', reachable ? 'exit 0' : 'exit 1')
+  stub(
+    bin,
+    'tailscale',
+    `if [ "$1" = "status" ] && [ "$2" = "--json" ]; then
+       echo '{"Self":{"DNSName":"filesynapse.tailnet.test.","TailscaleIPs":["100.64.0.1"]}}'
+     fi
+     exit 0`,
+  )
+  stub(bin, 'systemctl', 'echo filesynapse-backup.timer')
+
+  const result = spawnSync('bash', [shellPath(join(HERE, 'verify.sh'))], {
+    cwd: root,
+    env: {
+      ...process.env,
+      PATH: `${shellPath(bin)}:${process.env.PATH}`,
+      STACK_DIR: `${shellRoot}/opt/filesynapse`,
+      PHOTOS_DIR: `${shellRoot}/srv/photos`,
+      FILES_DIR: `${shellRoot}/srv/cloud`,
+      WAIT_TRIES: '1',
+    },
+    encoding: 'utf8',
+  })
+
+  return { status: result.status, output: `${result.stdout ?? ''}${result.stderr ?? ''}` }
+}
+
+const healthy = runVerify(first.root, first.shellRoot)
+check('a working server passes', healthy.status === 0, healthy.output.slice(-300))
+check(
+  'and it confirms the tailnet name specifically',
+  healthy.output.includes('trusts the tailnet name'),
+)
+check(
+  'and prints the host by its value, not as a JSON fragment',
+  healthy.output.includes('(filesynapse)') && !healthy.output.includes('"overwritehost"'),
+)
+
+// The check the script exists for. Nextcloud is up and answering; the only
+// thing wrong is that it does not recognise the name it is being reached by.
+const untrusted = runVerify(first.root, first.shellRoot, { trusts: false })
+check(
+  'a server that does not trust its own tailnet name fails',
+  untrusted.status !== 0,
+  'it reported success for a server that would answer "Access through untrusted domain"',
+)
+check(
+  'and it names the name it refused',
+  untrusted.output.includes('filesynapse.tailnet.test'),
+)
+
+check('no docker is reported as the blocker it is', runVerify(first.root, first.shellRoot, {
+  docker: false,
+}).status !== 0)
+
+// A server where nothing is listening. Everything is "running" as far as docker
+// is concerned, which is the state that makes this worth checking at all.
+check(
+  'services that never answer are not reported as working',
+  runVerify(first.root, first.shellRoot, { reachable: false }).status !== 0,
+)
+
 /* ── Cleanup ────────────────────────────────────────────────────────────── */
 
 for (const s of [first, control, failsMidBody]) {
