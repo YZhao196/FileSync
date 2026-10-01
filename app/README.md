@@ -33,13 +33,16 @@ toolchain; see [`filesynapsetodo.md`](../../../filesynapsetodo.md).
 ## Installer
 
 `npx tauri build` produces the bundles for whatever platform it runs on, because
-`bundle.targets` is `"all"`. CI builds all three — see the `desktop-shell` job.
+`bundle.targets` is `"all"`. [`release.yml`](../.github/workflows/release.yml)
+builds all three on a `v*` tag and attaches them to the GitHub release, which is
+where the downloadable installers come from. CI's `desktop-shell` job builds
+Linux and macOS as a compile check only, and publishes nothing.
 
 | Platform | Built by | Produces |
 |---|---|---|
-| Windows | `npx tauri build`, or CI | NSIS setup and an MSI, in `src-tauri/target/release/bundle/` |
-| Linux | CI only | deb, rpm, AppImage |
-| macOS | CI only | app, dmg |
+| Windows | `npx tauri build` | NSIS setup and an MSI, in `src-tauri/target/release/bundle/` |
+| Linux | `release.yml`, or the same command on Linux | deb, rpm, AppImage |
+| macOS | `release.yml` only | app, dmg |
 
 **Linux and macOS cannot be built on the Windows development machine** and are
 not expected to be. macOS is an Apple toolchain and licensing constraint, not a

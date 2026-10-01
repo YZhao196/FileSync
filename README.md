@@ -24,8 +24,8 @@ development mock.
 
 | | |
 |---|---|
-| Desktop client | Built — 146 tests, strict typecheck, production build; screens walked in a browser against the mock |
-| Tauri shell | Compiles and launches on Windows; **Linux and macOS bundles have never been built** |
+| Desktop client | Built — 151 tests, strict typecheck, production build; screens walked in a browser against the mock |
+| Tauri shell | Compiles and launches on Windows; **no Linux or macOS bundle has ever been built** — [`release.yml`](.github/workflows/release.yml) makes them on a `v*` tag, and no tag has been pushed |
 | Mobile client | All four screens built, and all four run under test; **never run on a device** |
 | Host agent | Written, its HTTP contract tested; **not deployed** |
 | Provisioning | Written, dry-run against a sandbox; **never run on a machine** |
@@ -46,33 +46,54 @@ the repo are relative paths out of the tree.
 
 ## Installing it
 
+**Downloads are on the [Releases page](https://github.com/YZhao196/FileSync/releases).**
+Every tagged release carries installers for Windows, Linux, macOS and Android.
+They are unsigned — each platform warns about that, and
+[`.github/release-notes.md`](.github/release-notes.md) says what each warning
+looks like.
+
+**That page is empty today.** No `v*` tag has been pushed, so nothing has been
+published and nothing below has been downloaded by anyone. Until then, build it
+from source — see [Building it from source](#building-it-from-source).
+
 **The server comes first.** Every client is a viewer with nothing to show until
 one exists, so a client installed first lands on a connection screen that cannot
 succeed.
 
-**Nothing below has been run end to end against a live server**, and each section
-says which half is which. The distinction is the useful part: the desktop client's
-screens have been exercised against a mock, and the server-side steps have been
-read and dry-run but never executed on a machine.
+### 1. The server — Linux, one button
 
-### 1. The server
+Immich and Nextcloud are Linux containers, so the server is a Linux machine: one
+Debian 12 or Ubuntu 22.04 box. The preflight accepts those two and refuses
+anything else by name.
 
-One Debian 12 or Ubuntu 22.04 machine. The preflight accepts those two and
-refuses anything else by name.
+1. Download `FileSynapse_*_amd64.AppImage` (or the `.deb`) from
+   [Releases](https://github.com/YZhao196/FileSync/releases).
+2. Run it **on the machine that will be the server**.
+3. Click **Set up this computer as your server** and follow the wizard.
+
+That is the whole install. The wizard checks the machine, takes the two folders,
+asks for an off-site backup target, and then downloads and installs everything
+else — Docker, Tailscale, Immich and Nextcloud with their own databases, the
+nightly restic snapshot, and the host agent — reporting each step as it runs. It
+is five steps rather than one because which disks the libraries live on, and
+whether there is an off-site copy, are worth deciding before a five-minute
+install rather than after it.
+
+**It needs a desktop session**, because it is a window with a button in it. On a
+headless machine the same provisioning runs from a shell, below.
+
+> **Never run.** The button has been dry-run against a sandbox with every
+> external command stubbed, which proves what it generates and cannot prove that
+> apt, Docker or systemd do anything with it. Nobody has clicked it on a real
+> machine yet.
+
+**On a headless box**, or from a checkout:
 
 ```bash
 sudo bash infra/provision/smoke.sh
 ```
 
-That is the whole install. It installs packages, starts Docker, fetches Immich's
-compose from its own release assets, brings up Immich and Nextcloud with their
-own databases, joins the tailnet, writes the nightly restic backup, builds the
-host agent, and then runs `verify.sh` against the result — reporting whether the
-server *works* rather than whether its steps exited zero.
-
-**Run it on a machine you are willing to lose.** It installs packages and starts
-services; a throwaway VM is the right shape for a first attempt. The tailnet is
-stubbed by default, because joining a real one adds a machine called
+It stubs the tailnet by default, because joining a real one adds a machine called
 `filesynapse` to your network as a side effect of a test — set
 `SMOKE_REAL_TAILSCALE=1` to join for real.
 
@@ -87,57 +108,37 @@ be up and answering while refusing every request that arrives by the tailnet's o
 name, which looks like a broken install and is a setting. Nothing else in the
 project can see that.
 
-> **Never run.** `provision.sh`, `verify.sh` and `smoke.sh` have been dry-run
-> against a sandbox with every external command stubbed, which proves what they
-> generate and cannot prove that apt, Docker or systemd do anything with it.
+**Run it on a machine you are willing to lose.** It installs packages and starts
+services; a throwaway VM is the right shape for a first attempt.
 
-### 2. Windows, Linux and macOS
+### 2. Windows and macOS — clients only
 
-| Platform | Build | Produces |
-|---|---|---|
-| Windows | `cd app && npx tauri build` | NSIS setup (6.2 MB) and MSI (8.1 MB) |
-| Linux | the same, on the machine it will run on | deb, rpm, AppImage |
-| macOS | the same, **on a Mac or a `macos-latest` runner** | app, dmg |
-
-Needs the Rust toolchain, and Tauri's system libraries on Linux
-(`webkit2gtk-4.1`, `libayatana-appindicator3`, `librsvg2`, `patchelf`,
-`libssl-dev`, `libsecret-1-dev`).
-
-**Every bundle is unsigned.** Windows: SmartScreen warns — *More info* → *Run
-anyway*. macOS: Gatekeeper refuses outright — right-click → *Open*, then *Open*
-again. Linux: nothing blocks it.
+Download and run the installer. Both are **clients**: they connect to the
+server, and the "set up this computer" button is not in them, because Immich and
+Nextcloud cannot run on either.
 
 | | |
 |---|---|
-| Windows | **Built.** No install/uninstall cycle has been run by hand |
-| Linux and macOS | **Never built anywhere.** macOS binaries cannot be built off macOS |
+| Windows | `FileSynapse_*_x64-setup.exe` — per-user, no administrator prompt. Its uninstall removes the stored credentials and the login item |
+| macOS | `FileSynapse_*_aarch64.dmg` — Apple silicon. Intel Macs are not built |
 
-Uninstall removes the stored credentials on Windows. On Linux and macOS they
-live in libsecret and the Keychain and survive deleting the app — remove the
-`filesynapse` entries by hand.
+**Unsigned.** Windows: SmartScreen warns — *More info* → *Run anyway*. macOS:
+Gatekeeper refuses outright — right-click → *Open*, then *Open* again.
+
+macOS keeps its stored credentials in the Keychain and Linux in libsecret, and
+both survive deleting the app — remove the `filesynapse` entries by hand.
+Windows is the tidy one: its uninstall removes them.
 
 ### 3. Android
 
-```bash
-cd mobile
-npm install
-npx expo prebuild -p android
-cd android && ./gradlew assembleDebug
-```
-
-The APK lands in `android/app/build/outputs/apk/debug/`; install it with
-`adb install` on a device with USB debugging on. It is **unsigned**, so Android
-warns — *Install anyway*. CI builds the same APK and attaches it to the run.
-
-| | |
-|---|---|
-| Bundles, and all four screens | **Verified** under test |
-| Installed and run on a device | **Not verified.** No device here, and no Android SDK |
+Download `filesynapse-*-android.apk` from Releases and install it, or sideload it
+with `adb install`. It is **unsigned**, so Android warns — *Install anyway*.
 
 **The one thing a device is needed for:** the whole backend is plain `http://`
 over the tailnet, and Android blocks cleartext by default. It is configured, and
 if that configuration is wrong *every request fails* — which no amount of mock
-testing shows.
+testing shows. The bundle and all four screens run under test; it has never run
+on a device.
 
 ### 4. iOS
 
@@ -169,6 +170,38 @@ Immich's `AlbumRead` and a Nextcloud PROPFIND and reports *which* half failed.
 
 Provisioning generates that last one and deliberately does not print it, because
 the provisioning log is world-readable.
+
+## Building it from source
+
+```bash
+cd app && npx tauri build
+```
+
+One command per platform, producing every format that platform has — `bundle.targets`
+is `all`, so Windows gives NSIS and MSI, Linux gives deb, rpm and AppImage, and
+macOS gives app and dmg.
+
+| Platform | Where it can be built |
+|---|---|
+| Windows | Anywhere with the Rust toolchain |
+| Linux | On the machine it will run on. Needs `webkit2gtk-4.1`, `libayatana-appindicator3`, `librsvg2`, `patchelf`, `libssl-dev`, `libsecret-1-dev` |
+| macOS | **Only on macOS.** A macOS binary cannot be produced anywhere else |
+
+Android, from `mobile/`:
+
+```bash
+npm install
+npx expo prebuild -p android --no-install
+cd android && ./gradlew assembleDebug
+```
+
+The APK lands in `android/app/build/outputs/apk/debug/`.
+
+**Pushing a `v*` tag does all of the above.** [`release.yml`](.github/workflows/release.yml)
+builds the three desktops and the APK on GitHub's runners and attaches them to the
+release, which is how the downloads at the top of this file are produced. The tag
+must match the version in `package.json`, `tauri.conf.json` and `Cargo.toml`, and
+the workflow refuses to publish if they disagree.
 
 ## Running it
 
