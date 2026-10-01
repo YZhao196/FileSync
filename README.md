@@ -25,7 +25,7 @@ development mock.
 | | |
 |---|---|
 | Desktop client | Built — 151 tests, strict typecheck, production build; screens walked in a browser against the mock |
-| Tauri shell | Compiles and launches on Windows; **no Linux or macOS bundle has ever been built** — [`release.yml`](.github/workflows/release.yml) makes them on a `v*` tag, and no tag has been pushed |
+| Tauri shell | Builds on Windows, Linux and macOS, all three green in CI; **nothing has been published**, because [`release.yml`](.github/workflows/release.yml) needs a `v*` tag and none has been pushed |
 | Mobile client | All four screens built, and all four run under test; **never run on a device** |
 | Host agent | Written, its HTTP contract tested; **not deployed** |
 | Provisioning | Written, dry-run against a sandbox; **never run on a machine** |
