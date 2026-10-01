@@ -221,9 +221,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Same Node as the mobile job, for the same reason — it installs the same
+      # dependency tree and hits the same EBADENGINE range.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: mobile/package-lock.json
 
