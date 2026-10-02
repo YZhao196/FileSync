@@ -1,5 +1,6 @@
 import { Button } from '@primer/react'
 import { carbonIcon } from '../../components/Icon'
+import { NeedsServer } from '../../components/NeedsServer'
 import { useAsync } from '../../hooks/useAsync'
 import { useApp } from '../../state/store'
 import { PhotoCollection } from './PhotoCollection'
@@ -16,9 +17,13 @@ export function AlbumDetail() {
   const albumId = nav.albumId
 
   const { data, loading, reload } = useAsync(
-    () => (albumId ? backends.photos.albumAssets(albumId) : Promise.resolve([])),
+    () => (albumId && backends ? backends.photos.albumAssets(albumId) : Promise.resolve([])),
     [backends, albumId],
   )
+
+  // Guarded here and in the callback: hooks cannot be skipped, so the null has
+  // to be answered for in both places.
+  if (!backends) return <NeedsServer />
 
   if (!albumId) {
     return (

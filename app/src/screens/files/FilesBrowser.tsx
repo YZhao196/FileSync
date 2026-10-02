@@ -5,7 +5,9 @@ import { ChoiceScreen } from '../../components/ChoiceScreen'
 import { ConfirmDialog, PromptDialog } from '../../components/Dialogs'
 import { FolderPicker } from '../../components/FolderPicker'
 import { Icon, IconBadge, carbonIcon, type IconName } from '../../components/Icon'
+import { NeedsServer } from '../../components/NeedsServer'
 import { useToast } from '../../components/Toaster'
+import type { Backends } from '../../core/backends'
 import type { FileEntry, TreeNode } from '../../core/types'
 import { useAsync } from '../../hooks/useAsync'
 import { joinPath, parentOf } from '../../lib/paths'
@@ -22,7 +24,7 @@ interface TreeRow extends TreeNode {
 }
 
 export function FilesBrowser() {
-  const { fileMode, setFileMode, fileFolder, setFileFolder, isHost, nav } = useApp()
+  const { fileMode, setFileMode, fileFolder, setFileFolder, isHost, nav, backends } = useApp()
 
   // Arriving from a search result means the user has already chosen: they asked
   // for a specific file. Showing the in-app/explorer chooser in front of it
@@ -87,7 +89,11 @@ export function FilesBrowser() {
     )
   }
 
-  return <Browser onReset={() => setFileMode('choose')} />
+  // The sidebar lists this from the module mode, not from the connection, so it
+  // is reachable before an address exists.
+  if (!backends) return <NeedsServer />
+
+  return <Browser onReset={() => setFileMode('choose')} backends={backends} />
 }
 
 function NativeFolder({ path, onChange, onReset }: { path: string; onChange: () => void; onReset: () => void }) {
@@ -159,8 +165,8 @@ type FileDialog =
   | { kind: 'delete'; entry: FileEntry }
   | null
 
-function Browser({ onReset }: { onReset: () => void }) {
-  const { backends, nav, connection } = useApp()
+function Browser({ onReset, backends }: { onReset: () => void; backends: Backends }) {
+  const { nav, connection } = useApp()
   const { show } = useToast()
 
   const { data: tree, reload: reloadTree } = useAsync(() => backends.files.tree(), [backends])

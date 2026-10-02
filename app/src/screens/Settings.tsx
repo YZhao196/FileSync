@@ -55,7 +55,13 @@ export function Settings() {
   }, [])
   const [cached, setCached] = useState(cacheStats())
 
-  const { data: status } = useAsync(() => backends.server.status(), [backends])
+  // Settings has to render before a server exists — it is where the address and
+  // the credentials are entered — so this reports "unreachable" rather than
+  // refusing to draw.
+  const { data: status } = useAsync(
+    () => (backends ? backends.server.status() : Promise.resolve(null)),
+    [backends],
+  )
   const photosInApp = photoMode === 'inapp'
   const filesInApp = fileMode === 'inapp'
 
@@ -379,11 +385,12 @@ function DecisionPipeline() {
   const [clearing, setClearing] = useState(false)
 
   const { data: status, loading } = useAsync(
-    () => (decisionPipeline ? backends.server.decisionStatus() : Promise.resolve(null)),
+    () => (backends && decisionPipeline ? backends.server.decisionStatus() : Promise.resolve(null)),
     [backends, decisionPipeline],
   )
 
   const clearCaptions = async () => {
+    if (!backends) return
     setClearing(true)
     try {
       const cleared = await backends.server.clearCaptionCache()

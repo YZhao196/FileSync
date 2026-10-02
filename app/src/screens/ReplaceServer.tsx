@@ -3,6 +3,7 @@ import { Button, FormControl, Heading, IconButton, Stack, TextInput } from '@pri
 import { InlineMessage } from '@primer/react/experimental'
 import { EventList } from '../components/EventList'
 import { carbonIcon, Icon } from '../components/Icon'
+import { NeedsServer } from '../components/NeedsServer'
 import { useToast } from '../components/Toaster'
 import { testConnection } from '../core/client'
 import type { BackupStatus, Preflight } from '../core/types'
@@ -58,7 +59,10 @@ export function ReplaceServer() {
   } = useApp()
   const { show } = useToast()
 
-  const { data: status } = useAsync(() => backends.server.status(), [backends])
+  const { data: status } = useAsync(
+    () => (backends ? backends.server.status() : Promise.resolve(null)),
+    [backends],
+  )
 
   const [step, setStep] = useState<Step>('source')
   const [testing, setTesting] = useState(false)
@@ -120,6 +124,10 @@ export function ReplaceServer() {
     const id = window.setInterval(tick, 700)
     return () => window.clearInterval(id)
   }, [running, setRole])
+
+  // Replacing a server needs one to replace; the whole flow reads its status
+  // and checks the cloud backup before offering either route.
+  if (!backends) return <NeedsServer />
 
   const runTest = async () => {
     setTesting(true)

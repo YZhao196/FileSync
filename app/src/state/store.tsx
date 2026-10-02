@@ -179,7 +179,16 @@ export interface AppApi extends Persisted {
   setFileFolder: (p: string) => void
   setDecisionPipeline: (on: boolean) => void
   resetConnection: () => void
-  backends: Backends
+  /**
+   * Null until an address is configured.
+   *
+   * A live client cannot be built without URLs — `createLiveBackends` refuses
+   * to make one that silently goes nowhere — so before First Run is completed
+   * there is genuinely nothing to hand out. It used to be built regardless, and
+   * the throw landed inside render, which unmounts the tree and leaves a blank
+   * window. The type says `null` now, so every consumer has to answer for it.
+   */
+  backends: Backends | null
 }
 
 const AppContext = createContext<AppApi | null>(null)
@@ -269,9 +278,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [patch],
   )
 
+  /**
+   * Whether there is a backend to hand out at all.
+   *
+   * A development build runs against the mock, which needs no server — that is
+   * the point of it — so it always has one. A shipped build needs a real
+   * address, and until First Run supplies one there is nothing to construct:
+   * `createLiveBackends` refuses to build a client that silently goes nowhere,
+   * and that refusal used to land inside render and take the tree with it.
+   */
+  const hasBackends =
+    import.meta.env.DEV ||
+    Boolean(
+      state.connection.immichUrl && state.connection.nextcloudUrl && state.connection.agentUrl,
+    )
+
   const backends = useMemo(
-    () => createBackends(state.connection, credentials),
-    [state.connection, credentials],
+    () => (hasBackends ? createBackends(state.connection, credentials) : null),
+    [hasBackends, state.connection, credentials],
   )
 
   const api = useMemo<AppApi>(

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { TextInput } from '@primer/react'
+import type { PhotoBackend } from '../core/backends'
 import type { Photo, TreeNode } from '../core/types'
 import { useThumb } from '../hooks/useThumb'
 import { parentOf } from '../lib/paths'
@@ -72,7 +73,9 @@ export function SearchPalette() {
   }, [searchOpen])
 
   useEffect(() => {
-    if (!searchOpen) return
+    // The palette is global, so it can be opened on First Run, where there is
+    // no server to search. Nothing to ask means nothing to do.
+    if (!searchOpen || !backends) return
     const q = query.trim()
     if (!q) {
       setPhotos([])
@@ -109,7 +112,7 @@ export function SearchPalette() {
   // browser still turned up under its old name here, which is worse than a
   // small delay.
   useEffect(() => {
-    if (!searchOpen) return
+    if (!searchOpen || !backends) return
     let cancelled = false
     backends.files
       .tree()
@@ -140,6 +143,10 @@ export function SearchPalette() {
   }, [query, tree])
 
   if (!searchOpen) return null
+
+  // Opened on First Run: there is no server, so there is nothing to search and
+  // nothing to render a result against.
+  if (!backends) return null
 
   // The viewer takes over the screen while a result is open. Two overlays at
   // once would put the palette's dim layer over the photo, so the palette
@@ -337,7 +344,7 @@ function PhotoRow({
   onOpen,
 }: {
   photo: Photo
-  backend: ReturnType<typeof useApp>['backends']['photos']
+  backend: PhotoBackend
   onOpen: () => void
 }) {
   const src = useThumb(backend, photo.id, 'small')

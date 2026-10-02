@@ -31,7 +31,7 @@ interface Verdict {
  * do.
  */
 export function useBackupWatch(
-  backends: Backends,
+  backends: Backends | null,
   live: boolean,
   /**
    * Where the fetched status goes, for the surfaces inside the window.
@@ -46,6 +46,11 @@ export function useBackupWatch(
   const previous = useRef<Verdict | null>(null)
 
   useEffect(() => {
+    // Nothing to poll before there is a server. That is First Run, and the
+    // status surfaces start at null, which is what they should show until an
+    // address exists.
+    if (!backends) return
+
     // Deliberately not gated on `live`. The poll feeds the window's status
     // indicators as well as the tray, and a development build needs those to
     // work — against the mock, which is what the mock is for. `live` gates the

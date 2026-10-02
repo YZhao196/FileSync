@@ -1,11 +1,19 @@
 import { Blankslate } from '@primer/react/experimental'
 import { Icon } from '../../components/Icon'
+import { NeedsServer } from '../../components/NeedsServer'
 import { useAsync } from '../../hooks/useAsync'
 import { useApp } from '../../state/store'
 
 export function Albums() {
   const { backends, go } = useApp()
-  const { data: albums, loading, error } = useAsync(() => backends.photos.albums(), [backends])
+  const { data: albums, loading, error } = useAsync(
+    () => (backends ? backends.photos.albums() : Promise.resolve([])),
+    [backends],
+  )
+
+  // Before the fetch is meaningful: there is no library to list. Guarded in the
+  // callback as well as here, because hooks cannot be skipped.
+  if (!backends) return <NeedsServer />
 
   if (loading) {
     return <Centered>Loading albums…</Centered>

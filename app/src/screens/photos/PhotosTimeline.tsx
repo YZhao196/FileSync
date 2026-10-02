@@ -3,7 +3,9 @@ import { Button } from '@primer/react'
 import { ChoiceScreen } from '../../components/ChoiceScreen'
 import { FolderPicker } from '../../components/FolderPicker'
 import { carbonIcon, Icon, IconBadge } from '../../components/Icon'
+import { NeedsServer } from '../../components/NeedsServer'
 import { useToast } from '../../components/Toaster'
+import type { Backends } from '../../core/backends'
 import type { Photo, PhotoId } from '../../core/types'
 import { FILE_MANAGER } from '../../lib/platform'
 import { revealInSystem } from '../../native/bridge'
@@ -18,7 +20,7 @@ import { PhotoCollection, type DecisionHooks } from './PhotoCollection'
  * decision pipeline, which the timeline is the only place to opt into.
  */
 export function PhotosTimeline() {
-  const { photoMode, setPhotoMode, photoFolder, setPhotoFolder, isHost } = useApp()
+  const { photoMode, setPhotoMode, photoFolder, setPhotoFolder, isHost, backends } = useApp()
 
   if (photoMode === 'choose') {
     return (
@@ -75,7 +77,11 @@ export function PhotosTimeline() {
     )
   }
 
-  return <Timeline onReset={() => setPhotoMode('choose')} />
+  // The sidebar lists Timeline from the module mode, not from the connection,
+  // so this is reachable before an address exists.
+  if (!backends) return <NeedsServer />
+
+  return <Timeline onReset={() => setPhotoMode('choose')} backends={backends} />
 }
 
 function NativeFolder({
@@ -147,8 +153,8 @@ function NativeFolder({
   )
 }
 
-function Timeline({ onReset }: { onReset: () => void }) {
-  const { backends, decisionPipeline } = useApp()
+function Timeline({ onReset, backends }: { onReset: () => void; backends: Backends }) {
+  const { decisionPipeline } = useApp()
   const { show } = useToast()
 
   const [photos, setPhotos] = useState<Photo[]>([])

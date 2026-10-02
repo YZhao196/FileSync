@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button, Label, Stack } from '@primer/react'
 import { Card } from '@primer/react/experimental'
 import { carbonIcon, Icon } from '../components/Icon'
+import { NeedsServer } from '../components/NeedsServer'
 import { useToast } from '../components/Toaster'
 import type { DriveUsage, ServiceState, ServiceStatus } from '../core/types'
 import { useAsync } from '../hooks/useAsync'
@@ -16,8 +17,16 @@ import { useApp } from '../state/store'
 export function ServerStatus() {
   const { backends, connection, go, setPhotoMode, setFileMode, isLean } = useApp()
   const { show } = useToast()
-  const { data: status, loading, error, reload } = useAsync(() => backends.server.status(), [backends])
+  const { data: status, loading, error, reload } = useAsync(
+    () => (backends ? backends.server.status() : Promise.resolve(null)),
+    [backends],
+  )
   const [backing, setBacking] = useState(false)
+
+  // Nothing to report on without a server, and the panel is nothing but a
+  // report. Placed after the hooks, which cannot be skipped, and before the
+  // handlers below so they see a non-null `backends`.
+  if (!backends) return <NeedsServer />
 
   const runBackup = async () => {
     if (backing) return
