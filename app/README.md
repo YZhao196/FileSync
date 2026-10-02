@@ -25,6 +25,13 @@ documented fallback and say so.
 installed app always talks to a real server, and there is no switch, setting or
 code path by which a user sees fabricated data.
 
+**That same branch is what broke every build before 0.1.1.** The production
+branch built live clients, and a live client refuses to exist without a URL — so
+on a fresh install, where no address has been entered yet, it threw during
+render and the window stayed blank white. `0.1.0`'s installers do not work on any
+platform; discard them rather than debug them. Development builds never reached
+the code, which is why `npm run dev` was fine throughout.
+
 **As a desktop app** — `npx tauri dev`, or `npx tauri build` for installers.
 This is the real thing: CORS-free HTTP, the OS keychain, the tray,
 launch-at-login, notifications, and the provisioning runner. Requires the Rust
